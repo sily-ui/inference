@@ -457,6 +457,114 @@ def download_report(report_id: str):
         ), 500
 
 
+@report_bp.route("/<report_id>/download/pdf", methods=["GET"])
+def download_report_pdf(report_id: str):
+    """
+    下载报告（PDF格式 - 美化版）
+
+    使用 ReportLab 生成美观的 PDF 报告
+
+    返回PDF文件
+    """
+    try:
+        from ..services.pdf_generator import generate_report_pdf
+
+        report = ReportManager.get_report(report_id)
+
+        if not report:
+            return jsonify({"success": False, "error": f"报告不存在: {report_id}"}), 404
+
+        if report.status != ReportStatus.COMPLETED:
+            return jsonify({"success": False, "error": "报告尚未生成完成"}), 400
+
+        pdf_path = os.path.join(
+            Config.UPLOAD_FOLDER, "reports", report_id, f"{report_id}.pdf"
+        )
+
+        if not os.path.exists(pdf_path):
+            sections = ReportManager.get_generated_sections(report_id)
+
+            formatted_sections = []
+            for section in sections:
+                formatted_sections.append({
+                    "title": section.get("title", ""),
+                    "content": section.get("content", ""),
+                })
+
+            if not formatted_sections and report.markdown_content:
+                formatted_sections = None
+
+            pdf_path = generate_report_pdf(
+                report_id=report_id,
+                title=report.title or "预测报告",
+                summary=report.summary or "",
+                markdown_content=report.markdown_content or "",
+                sections=formatted_sections,
+            )
+
+        return send_file(pdf_path, as_attachment=True, download_name=f"{report_id}.pdf")
+
+    except Exception as e:
+        logger.error(f"下载PDF报告失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@report_bp.route("/<report_id>/download/word", methods=["GET"])
+def download_report_word(report_id: str):
+    """
+    下载报告（Word格式）
+
+    使用 python-docx 生成 Word 文档
+
+    返回Word文件
+    """
+    try:
+        from ..services.pdf_generator import generate_report_word
+
+        report = ReportManager.get_report(report_id)
+
+        if not report:
+            return jsonify({"success": False, "error": f"报告不存在: {report_id}"}), 404
+
+        if report.status != ReportStatus.COMPLETED:
+            return jsonify({"success": False, "error": "报告尚未生成完成"}), 400
+
+        word_path = os.path.join(
+            Config.UPLOAD_FOLDER, "reports", report_id, f"{report_id}.docx"
+        )
+
+        if not os.path.exists(word_path):
+            sections = ReportManager.get_generated_sections(report_id)
+
+            formatted_sections = []
+            for section in sections:
+                formatted_sections.append({
+                    "title": section.get("title", ""),
+                    "content": section.get("content", ""),
+                })
+
+            if not formatted_sections and report.markdown_content:
+                formatted_sections = None
+
+            word_path = generate_report_word(
+                report_id=report_id,
+                title=report.title or "预测报告",
+                summary=report.summary or "",
+                markdown_content=report.markdown_content or "",
+                sections=formatted_sections,
+            )
+
+        return send_file(word_path, as_attachment=True, download_name=f"{report_id}.docx")
+
+    except Exception as e:
+        logger.error(f"下载Word报告失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
 @report_bp.route("/<report_id>", methods=["DELETE"])
 def delete_report(report_id: str):
     """删除报告"""

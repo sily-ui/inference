@@ -128,13 +128,54 @@
           </div>
 
           <!-- Next Step Button - 在完成后显示 -->
-          <button v-if="isComplete" class="next-step-btn" @click="goToInteraction">
-            <span>进入深度互动</span>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-              <polyline points="12 5 19 12 12 19"></polyline>
-            </svg>
-          </button>
+          <div v-if="isComplete" class="completion-buttons">
+            <div class="download-dropdown">
+              <button class="download-btn" @click="toggleDownloadMenu">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>下载报告</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div class="download-menu" v-if="showDownloadMenu">
+                <button class="download-option" @click="handleDownload('pdf')">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <span>PDF 格式</span>
+                </button>
+                <button class="download-option" @click="handleDownload('markdown')">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                  </svg>
+                  <span>Markdown 格式</span>
+                </button>
+                <button class="download-option" @click="handleDownload('word')">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <path d="M9 13h2l1 4 1-4h2"></path>
+                  </svg>
+                  <span>Word 格式</span>
+                </button>
+              </div>
+            </div>
+            <button class="next-step-btn" @click="goToInteraction">
+              <span>进入深度互动</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </div>
 
           <div class="workflow-divider"></div>
         </div>
@@ -408,6 +449,47 @@ const emit = defineEmits(['add-log', 'update-status'])
 const goToInteraction = () => {
   if (props.reportId) {
     router.push({ name: 'Interaction', params: { reportId: props.reportId } })
+  }
+}
+
+// PDF Download
+const showDownloadMenu = ref(false)
+
+const toggleDownloadMenu = () => {
+  showDownloadMenu.value = !showDownloadMenu.value
+}
+
+const handleDownload = async (format) => {
+  showDownloadMenu.value = false
+  if (!props.reportId) return
+  
+  const formatMap = {
+    pdf: { url: `/api/report/${props.reportId}/download/pdf`, ext: 'pdf' },
+    markdown: { url: `/api/report/${props.reportId}/download`, ext: 'md' },
+    word: { url: `/api/report/${props.reportId}/download/word`, ext: 'docx' }
+  }
+  
+  const config = formatMap[format]
+  if (!config) return
+  
+  try {
+    const response = await fetch(config.url)
+    if (!response.ok) {
+      throw new Error(`${format.toUpperCase()} 生成失败`)
+    }
+    
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${props.reportId}.${config.ext}`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error(`下载 ${format.toUpperCase()} 失败:`, error)
+    alert(`下载 ${format.toUpperCase()} 失败，请稍后重试`)
   }
 }
 
@@ -3397,13 +3479,83 @@ watch(() => props.reportId, (newId) => {
   font-size: 14px;
 }
 
+.completion-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 20px 0 20px;
+}
+
+.download-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.download-btn:hover {
+  background: #E5E7EB;
+  border-color: #D1D5DB;
+}
+
+.download-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.download-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #374151;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+}
+
+.download-option:hover {
+  background: #F3F4F6;
+}
+
+.download-option:not(:last-child) {
+  border-bottom: 1px solid #F3F4F6;
+}
+
 .next-step-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: calc(100% - 40px);
-  margin: 4px 20px 0 20px;
+  width: 100%;
   padding: 14px 20px;
   font-size: 14px;
   font-weight: 600;

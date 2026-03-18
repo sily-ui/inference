@@ -1,6 +1,6 @@
 # MiroFish API 接口文档
 
-> 版本: v1.0.2  
+> 版本: v1.0.3  
 > 基础URL: `http://localhost:5001/api`  
 > 编码: UTF-8  
 > 响应格式: JSON
@@ -1347,6 +1347,10 @@ GET /api/report/{report_id}/section/{section_index}
 
 ### 4.7 下载报告
 
+支持三种格式的报告下载：Markdown、PDF、Word。
+
+#### 4.7.1 下载 Markdown 格式
+
 **请求**
 
 ```
@@ -1355,7 +1359,53 @@ GET /api/report/{report_id}/download
 
 **响应**
 
-返回 Markdown 文件下载。
+返回 Markdown 文件下载（`.md` 格式）。
+
+---
+
+#### 4.7.2 下载 PDF 格式（美化版）
+
+使用 ReportLab 生成的美观 PDF 报告，支持中文字体和格式化排版。
+
+**请求**
+
+```
+GET /api/report/{report_id}/download/pdf
+```
+
+**响应**
+
+返回 PDF 文件下载（`.pdf` 格式）。
+
+**特性**
+- 自动注册系统中文字体（SimHei、SimSun、Microsoft YaHei）
+- 支持标题层级（H1-H3）
+- 支持列表、引用、代码块等 Markdown 元素
+- 包含页眉页脚和页码
+- 自动生成报告元数据（报告ID、生成时间）
+
+---
+
+#### 4.7.3 下载 Word 格式
+
+使用 python-docx 生成的 Word 文档，支持中文字体。
+
+**请求**
+
+```
+GET /api/report/{report_id}/download/word
+```
+
+**响应**
+
+返回 Word 文件下载（`.docx` 格式）。
+
+**特性**
+- 支持中文字体（SimHei、SimSun）
+- 支持标题层级（H1-H3）
+- 支持有序列表、无序列表
+- 支持引用块
+- 自动生成报告元数据
 
 ---
 

@@ -29,6 +29,10 @@ PyMuPDF>=1.24.0
 # 编码检测（支持非UTF-8编码的文本文件）
 charset-normalizer>=3.0.0
 chardet>=5.0.0
+# PDF生成（美化报告）
+reportlab>=4.0.0
+# Word文档生成
+python-docx>=1.1.0
 
 # ============= 工具库 =============
 # 环境变量加载
