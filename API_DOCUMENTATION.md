@@ -1,6 +1,6 @@
 # MiroFish API 接口文档
 
-> 版本: v1.0.3  
+> 版本: v1.0.4  
 > 基础URL: `http://localhost:5001/api`  
 > 编码: UTF-8  
 > 响应格式: JSON
@@ -932,7 +932,43 @@ Content-Type: application/json
 
 ---
 
-### 3.11 采访Agent
+### 3.11 删除模拟
+
+删除模拟及其关联的数据（运行状态、配置文件等）。
+
+**请求**
+
+```
+DELETE /api/simulation/{simulation_id}
+```
+
+**路径参数**
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| simulation_id | string | 是 | 模拟ID |
+
+**响应示例**
+
+```json
+{
+    "success": true,
+    "message": "模拟已删除: sim_def456"
+}
+```
+
+**错误响应**
+
+```json
+{
+    "success": false,
+    "error": "模拟不存在: sim_def456"
+}
+```
+
+---
+
+### 3.12 采访Agent
 
 在模拟运行中或完成后，采访单个Agent获取其观点。
 
@@ -1011,7 +1047,7 @@ Content-Type: application/json
 
 ---
 
-### 3.12 批量采访Agent
+### 3.13 批量采访Agent
 
 **请求**
 
@@ -1043,7 +1079,7 @@ Content-Type: application/json
 
 ---
 
-### 3.13 获取模拟帖子
+### 3.14 获取模拟帖子
 
 **请求**
 
@@ -1055,7 +1091,7 @@ GET /api/simulation/{simulation_id}/posts
 
 | 参数 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| platform | string | 否 | reddit | 平台类型 |
+| platform | string | 否 | reddit | 平台类型: `twitter`/`reddit` |
 | limit | int | 否 | 50 | 返回数量 |
 | offset | int | 否 | 0 | 偏移量 |
 
@@ -1086,7 +1122,7 @@ GET /api/simulation/{simulation_id}/posts
 
 ---
 
-### 3.14 获取模拟评论
+### 3.15 获取模拟评论
 
 **请求**
 
@@ -1104,7 +1140,7 @@ GET /api/simulation/{simulation_id}/comments
 
 ---
 
-### 3.15 获取时间线
+### 3.16 获取时间线
 
 按轮次汇总的模拟时间线。
 
@@ -1143,7 +1179,7 @@ GET /api/simulation/{simulation_id}/timeline
 
 ---
 
-### 3.16 获取Agent统计
+### 3.17 获取Agent统计
 
 **请求**
 
