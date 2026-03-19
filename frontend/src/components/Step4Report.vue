@@ -168,7 +168,7 @@
                 </button>
               </div>
             </div>
-            <button class="next-step-btn" @click="goToInteraction">
+            <button class="next-step-btn" @click="goToPrediction">
               <span>进入深度互动</span>
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -378,6 +378,18 @@
                       <span>Report Generation Complete</span>
                     </div>
                   </template>
+
+                  <!-- Error -->
+                  <template v-if="log.action === 'error'">
+                    <div class="error-banner">
+                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                      </svg>
+                      <span>{{ log.details?.error || log.details?.message || 'Unknown error' }}</span>
+                    </div>
+                  </template>
                 </div>
 
                 <!-- Footer: Elapsed Time + Action Buttons -->
@@ -414,19 +426,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Bottom Console Logs -->
-    <div class="console-logs">
-      <div class="log-header">
-        <span class="log-title">CONSOLE OUTPUT</span>
-        <span class="log-id">{{ reportId || 'NO_REPORT' }}</span>
-      </div>
-      <div class="log-content" ref="logContent">
-        <div class="log-line" v-for="(log, idx) in consoleLogs" :key="idx">
-          <span class="log-msg" :class="getLogLevelClass(log)">{{ log }}</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -446,9 +445,9 @@ const props = defineProps({
 const emit = defineEmits(['add-log', 'update-status'])
 
 // Navigation
-const goToInteraction = () => {
+const goToPrediction = () => {
   if (props.reportId) {
-    router.push({ name: 'Interaction', params: { reportId: props.reportId } })
+    router.push({ name: 'Prediction', params: { reportId: props.reportId } })
   }
 }
 
@@ -2082,7 +2081,8 @@ const getActionLabel = (action) => {
     'tool_call': 'Tool Call',
     'tool_result': 'Tool Result',
     'llm_response': 'LLM Response',
-    'report_complete': 'Complete'
+    'report_complete': 'Complete',
+    'error': 'Error'
   }
   return labels[action] || action
 }

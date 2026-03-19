@@ -19,6 +19,21 @@ export function generateOntology(formData) {
 }
 
 /**
+ * 从文本生成本体（用于Tavily搜索结果）
+ * @param {Object} data - 包含text, simulation_requirement, project_name
+ * @returns {Promise}
+ */
+export function generateOntologyFromText(data) {
+  return requestWithRetry(() =>
+    service({
+      url: '/api/graph/ontology/generate-from-text',
+      method: 'post',
+      data
+    })
+  )
+}
+
+/**
  * 构建图谱
  * @param {Object} data - 包含project_id, graph_name等
  * @returns {Promise}

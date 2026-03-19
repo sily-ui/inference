@@ -97,7 +97,7 @@
                 <span class="step-num">03</span>
                 <div class="step-info">
                   <div class="step-title">开始模拟</div>
-                  <div class="step-desc">双平台并行模拟 & 自动解析预测需求 & 动态更新时序记忆</div>
+                  <div class="step-desc">国内舆情平台模拟 & 自动解析预测需求 & 动态更新时序记忆</div>
                 </div>
               </div>
               <div class="workflow-item">
@@ -121,81 +121,8 @@
         <!-- 右栏：交互控制台 -->
         <div class="right-panel">
           <div class="console-box">
-            <!-- 上传区域 -->
-            <div class="console-section">
-              <div class="console-header">
-                <span class="console-label">01 / 现实种子</span>
-                <span class="console-meta">支持格式: PDF, MD, TXT</span>
-              </div>
-              
-              <div 
-                class="upload-zone"
-                :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0 }"
-                @dragover.prevent="handleDragOver"
-                @dragleave.prevent="handleDragLeave"
-                @drop.prevent="handleDrop"
-                @click="triggerFileInput"
-              >
-                <input
-                  ref="fileInput"
-                  type="file"
-                  multiple
-                  accept=".pdf,.md,.txt"
-                  @change="handleFileSelect"
-                  style="display: none"
-                  :disabled="loading"
-                />
-                
-                <div v-if="files.length === 0" class="upload-placeholder">
-                  <div class="upload-icon">↑</div>
-                  <div class="upload-title">拖拽文件上传</div>
-                  <div class="upload-hint">或点击浏览文件系统</div>
-                </div>
-                
-                <div v-else class="file-list">
-                  <div v-for="(file, index) in files" :key="index" class="file-item">
-                    <span class="file-icon">📄</span>
-                    <span class="file-name">{{ file.name }}</span>
-                    <button @click.stop="removeFile(index)" class="remove-btn">×</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 分割线 -->
-            <div class="console-divider">
-              <span>输入参数</span>
-            </div>
-
-            <!-- 输入区域 -->
-            <div class="console-section">
-              <div class="console-header">
-                <span class="console-label">>_ 02 / 模拟提示词</span>
-              </div>
-              <div class="input-wrapper">
-                <textarea
-                  v-model="formData.simulationRequirement"
-                  class="code-input"
-                  placeholder="// 用自然语言输入模拟或预测需求（例.武大若发布撤销肖某处分的公告，会引发什么舆情走向）"
-                  rows="6"
-                  :disabled="loading"
-                ></textarea>
-                <div class="model-badge">引擎: MiroFish-V1.0</div>
-              </div>
-            </div>
-
-            <!-- 启动按钮 -->
-            <div class="console-section btn-section">
-              <button 
-                class="start-engine-btn"
-                @click="startSimulation"
-                :disabled="!canSubmit || loading"
-              >
-                <span v-if="!loading">启动引擎</span>
-                <span v-else>初始化中...</span>
-                <span class="btn-arrow">→</span>
-              </button>
-            </div>
+            <!-- Tavily 搜索组件 -->
+            <SocialDataSource />
           </div>
         </div>
       </section>
@@ -207,100 +134,18 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
+import SocialDataSource from '../components/SocialDataSource.vue'
 
 const router = useRouter()
-
-// 表单数据
-const formData = ref({
-  simulationRequirement: ''
-})
-
-// 文件列表
-const files = ref([])
-
-// 状态
-const loading = ref(false)
-const error = ref('')
-const isDragOver = ref(false)
-
-// 文件输入引用
-const fileInput = ref(null)
-
-// 计算属性:是否可以提交
-const canSubmit = computed(() => {
-  return formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
-})
-
-// 触发文件选择
-const triggerFileInput = () => {
-  if (!loading.value) {
-    fileInput.value?.click()
-  }
-}
-
-// 处理文件选择
-const handleFileSelect = (event) => {
-  const selectedFiles = Array.from(event.target.files)
-  addFiles(selectedFiles)
-}
-
-// 处理拖拽相关
-const handleDragOver = (e) => {
-  if (!loading.value) {
-    isDragOver.value = true
-  }
-}
-
-const handleDragLeave = (e) => {
-  isDragOver.value = false
-}
-
-const handleDrop = (e) => {
-  isDragOver.value = false
-  if (loading.value) return
-  
-  const droppedFiles = Array.from(e.dataTransfer.files)
-  addFiles(droppedFiles)
-}
-
-// 添加文件
-const addFiles = (newFiles) => {
-  const validFiles = newFiles.filter(file => {
-    const ext = file.name.split('.').pop().toLowerCase()
-    return ['pdf', 'md', 'txt'].includes(ext)
-  })
-  files.value.push(...validFiles)
-}
-
-// 移除文件
-const removeFile = (index) => {
-  files.value.splice(index, 1)
-}
 
 // 滚动到底部
 const scrollToBottom = () => {
   window.scrollTo({
     top: document.body.scrollHeight,
     behavior: 'smooth'
-  })
-}
-
-// 开始模拟 - 立即跳转，API调用在Process页面进行
-const startSimulation = () => {
-  if (!canSubmit.value || loading.value) return
-  
-  // 存储待上传的数据
-  import('../store/pendingUpload.js').then(({ setPendingUpload }) => {
-    setPendingUpload(files.value, formData.value.simulationRequirement)
-    
-    // 立即跳转到Process页面（使用特殊标识表示新建项目）
-    router.push({
-      name: 'Process',
-      params: { projectId: 'new' }
-    })
   })
 }
 </script>

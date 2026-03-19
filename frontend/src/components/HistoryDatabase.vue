@@ -119,7 +119,17 @@
                 </span>
                 <span class="modal-create-time">{{ formatDate(selectedProject.created_at) }} {{ formatTime(selectedProject.created_at) }}</span>
               </div>
+              <div class="modal-actions-header">
+              <button 
+                class="modal-btn-delete" 
+                @click="confirmDelete"
+                :disabled="isDeleting"
+              >
+                <span v-if="isDeleting" class="spinner-small"></span>
+                <span v-else>🗑️ 删除</span>
+              </button>
               <button class="modal-close" @click="closeModal">×</button>
+            </div>
             </div>
 
             <!-- 弹窗内容 -->
@@ -187,13 +197,43 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 删除确认对话框 -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="cancelDelete">
+          <div class="modal-content confirm-dialog">
+            <div class="confirm-header">
+              <span class="confirm-icon">⚠️</span>
+              <h3>确认删除</h3>
+            </div>
+            <div class="confirm-body">
+              <p>确定要删除这次推演记录吗？</p>
+              <p class="confirm-detail">{{ selectedProject?.simulation_requirement?.slice(0, 50) }}...</p>
+              <p class="confirm-warning">此操作不可恢复，相关数据将被永久删除。</p>
+            </div>
+            <div class="confirm-actions">
+              <button class="btn-cancel" @click="cancelDelete">取消</button>
+              <button 
+                class="btn-confirm-delete" 
+                @click="executeDelete"
+                :disabled="isDeleting"
+              >
+                <span v-if="isDeleting" class="spinner-small"></span>
+                <span v-else>确认删除</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getSimulationHistory } from '../api/simulation'
+import { getSimulationHistory, deleteSimulation } from '../api/simulation'
 
 const router = useRouter()
 const route = useRoute()
@@ -205,6 +245,8 @@ const isExpanded = ref(false)
 const hoveringCard = ref(null)
 const historyContainer = ref(null)
 const selectedProject = ref(null)  // 当前选中的项目（用于弹窗）
+const showDeleteConfirm = ref(false)  // 显示删除确认对话框
+const isDeleting = ref(false)  // 删除中状态
 let observer = null
 let isAnimating = false  // 动画锁，防止闪烁
 let expandDebounceTimer = null  // 防抖定时器
@@ -399,6 +441,40 @@ const navigateToProject = (simulation) => {
 // 关闭弹窗
 const closeModal = () => {
   selectedProject.value = null
+}
+
+// 确认删除
+const confirmDelete = () => {
+  showDeleteConfirm.value = true
+}
+
+// 取消删除
+const cancelDelete = () => {
+  showDeleteConfirm.value = false
+}
+
+// 执行删除
+const executeDelete = async () => {
+  if (!selectedProject.value?.simulation_id) return
+  
+  isDeleting.value = true
+  try {
+    const res = await deleteSimulation(selectedProject.value.simulation_id)
+    if (res.success) {
+      // 从列表中移除
+      projects.value = projects.value.filter(
+        p => p.simulation_id !== selectedProject.value.simulation_id
+      )
+      showDeleteConfirm.value = false
+      selectedProject.value = null
+    } else {
+      alert('删除失败: ' + (res.error || '未知错误'))
+    }
+  } catch (error) {
+    alert('删除失败: ' + error.message)
+  } finally {
+    isDeleting.value = false
+  }
 }
 
 // 导航到图谱构建页面（Project）
@@ -1336,5 +1412,153 @@ onUnmounted(() => {
   letter-spacing: 0.3px;
   text-align: center;
   line-height: 1.5;
+}
+
+/* 弹窗头部操作区 */
+.modal-actions-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-btn-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #EF4444;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #EF4444;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-btn-delete:hover:not(:disabled) {
+  background: #EF4444;
+  color: #FFFFFF;
+}
+
+.modal-btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 确认对话框 */
+.confirm-dialog {
+  max-width: 420px;
+  padding: 28px;
+}
+
+.confirm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.confirm-icon {
+  font-size: 1.5rem;
+}
+
+.confirm-header h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.confirm-body {
+  margin-bottom: 24px;
+}
+
+.confirm-body p {
+  font-size: 0.9rem;
+  color: #4B5563;
+  line-height: 1.6;
+  margin: 0 0 12px 0;
+}
+
+.confirm-detail {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: #6B7280;
+  background: #F3F4F6;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+}
+
+.confirm-warning {
+  font-size: 0.8rem;
+  color: #EF4444;
+  font-weight: 500;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  padding: 10px 20px;
+  border: 1px solid #E5E7EB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #4B5563;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-cancel:hover {
+  background: #F3F4F6;
+  border-color: #D1D5DB;
+}
+
+.btn-confirm-delete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  background: #EF4444;
+  color: #FFFFFF;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-confirm-delete:hover:not(:disabled) {
+  background: #DC2626;
+}
+
+.btn-confirm-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 加载动画 */
+.spinner-small {
+  width: 14px;
+  height: 14px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>

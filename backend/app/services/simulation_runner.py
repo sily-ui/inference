@@ -225,7 +225,9 @@ class SimulationRunner:
     
     # 图谱记忆更新配置
     _graph_memory_enabled: Dict[str, bool] = {}  # simulation_id -> enabled
-    
+
+    _agent_name_cache: Dict[str, Dict[int, str]] = {}  # simulation_id -> {agent_id: name}
+
     @classmethod
     def get_run_state(cls, simulation_id: str) -> Optional[SimulationRunState]:
         """获取运行状态"""
@@ -307,7 +309,47 @@ class SimulationRunner:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
         cls._run_states[state.simulation_id] = state
-    
+
+    @classmethod
+    def _load_agent_names(cls, simulation_id: str) -> Dict[int, str]:
+        """从 profiles 文件加载 Agent ID -> 名称 的映射"""
+        if simulation_id in cls._agent_name_cache:
+            return cls._agent_name_cache[simulation_id]
+
+        sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
+        agent_names = {}
+
+        csv_path = os.path.join(sim_dir, "twitter_profiles.csv")
+        if os.path.exists(csv_path):
+            try:
+                import csv
+                with open(csv_path, 'r', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        user_id = int(row.get('user_id', -1))
+                        name = row.get('name', '')
+                        if user_id >= 0 and name:
+                            agent_names[user_id] = name
+            except Exception as e:
+                logger.warning(f"加载 twitter_profiles.csv 失败: {e}")
+
+        json_path = os.path.join(sim_dir, "reddit_profiles.json")
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    profiles = json.load(f)
+                    for profile in profiles:
+                        user_id = profile.get('user_id', -1)
+                        name = profile.get('name', '')
+                        if user_id >= 0 and name and user_id not in agent_names:
+                            agent_names[user_id] = name
+            except Exception as e:
+                logger.warning(f"加载 reddit_profiles.json 失败: {e}")
+
+        cls._agent_name_cache[simulation_id] = agent_names
+        logger.info(f"加载了 {len(agent_names)} 个 Agent 名称映射")
+        return agent_names
+
     @classmethod
     def start_simulation(
         cls,
@@ -384,17 +426,7 @@ class SimulationRunner:
             cls._graph_memory_enabled[simulation_id] = False
         
         # 确定运行哪个脚本（脚本位于 backend/scripts/ 目录）
-        if platform == "twitter":
-            script_name = "run_twitter_simulation.py"
-            state.twitter_running = True
-        elif platform == "reddit":
-            script_name = "run_reddit_simulation.py"
-            state.reddit_running = True
-        else:
-            script_name = "run_parallel_simulation.py"
-            state.twitter_running = True
-            state.reddit_running = True
-        
+        script_name = "run_simulation.py"
         script_path = os.path.join(cls.SCRIPTS_DIR, script_name)
         
         if not os.path.exists(script_path):
@@ -407,13 +439,15 @@ class SimulationRunner:
         # 启动模拟进程
         try:
             # 构建运行命令，使用完整路径
-            # 新的日志结构：
-            #   twitter/actions.jsonl - Twitter 动作日志
-            #   reddit/actions.jsonl  - Reddit 动作日志
-            #   simulation.log        - 主进程日志
+            # 注意：必须使用包含 oasis 模块的 Python 解释器
+            python_executable = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+                'venv_py3.11', 'python.exe'
+            )
             
             cmd = [
-                sys.executable,  # Python解释器
+                python_executable,  # Python解释器
+                '-u',  # 禁用输出缓冲，确保日志实时写入
                 script_path,
                 "--config", config_path,  # 使用完整配置文件路径
             ]
@@ -424,7 +458,7 @@ class SimulationRunner:
             
             # 创建主日志文件，避免 stdout/stderr 管道缓冲区满导致进程阻塞
             main_log_path = os.path.join(sim_dir, "simulation.log")
-            main_log_file = open(main_log_path, 'w', encoding='utf-8')
+            main_log_file = open(main_log_path, 'w', encoding='utf-8', errors='replace')
             
             # 设置子进程环境变量，确保 Windows 上使用 UTF-8 编码
             # 这可以修复第三方库（如 OASIS）读取文件时未指定编码的问题
@@ -434,14 +468,13 @@ class SimulationRunner:
             
             # 设置工作目录为模拟目录（数据库等文件会生成在此）
             # 使用 start_new_session=True 创建新的进程组，确保可以通过 os.killpg 终止所有子进程
+            # 注意：不使用 text=True，让子进程以二进制模式写入文件，由 Python 运行时处理编码
             process = subprocess.Popen(
                 cmd,
                 cwd=sim_dir,
                 stdout=main_log_file,
                 stderr=subprocess.STDOUT,  # stderr 也写入同一个文件
-                text=True,
-                encoding='utf-8',  # 显式指定编码
-                bufsize=1,
+                bufsize=1,  # 行缓冲
                 env=env,  # 传递带有 UTF-8 设置的环境变量
                 start_new_session=True,  # 创建新进程组，确保服务器关闭时能终止所有相关进程
             )
@@ -478,50 +511,51 @@ class SimulationRunner:
     def _monitor_simulation(cls, simulation_id: str):
         """监控模拟进程，解析动作日志"""
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
-        
-        # 新的日志结构：分平台的动作日志
-        twitter_actions_log = os.path.join(sim_dir, "twitter", "actions.jsonl")
-        reddit_actions_log = os.path.join(sim_dir, "reddit", "actions.jsonl")
-        
+
+        agent_log = os.path.join(sim_dir, "logs", "social.agent.log")
+        main_log = os.path.join(sim_dir, "simulation.log")
+
         process = cls._processes.get(simulation_id)
         state = cls.get_run_state(simulation_id)
-        
+
         if not process or not state:
             return
-        
-        twitter_position = 0
-        reddit_position = 0
-        
+
+        log_position = 0
+        main_log_position = 0
+
         try:
-            while process.poll() is None:  # 进程仍在运行
-                # 读取 Twitter 动作日志
-                if os.path.exists(twitter_actions_log):
-                    twitter_position = cls._read_action_log(
-                        twitter_actions_log, twitter_position, state, "twitter"
+            while process.poll() is None:
+                if os.path.exists(agent_log):
+                    log_position, _ = cls._read_agent_log(
+                        agent_log, log_position, state, 0
                     )
-                
-                # 读取 Reddit 动作日志
-                if os.path.exists(reddit_actions_log):
-                    reddit_position = cls._read_action_log(
-                        reddit_actions_log, reddit_position, state, "reddit"
+
+                if os.path.exists(main_log):
+                    main_log_position, current_round = cls._read_main_log(
+                        main_log, main_log_position, state
                     )
-                
-                # 更新状态
+                    state.current_round = current_round
+
                 cls._save_run_state(state)
                 time.sleep(2)
-            
-            # 进程结束后，最后读取一次日志
-            if os.path.exists(twitter_actions_log):
-                cls._read_action_log(twitter_actions_log, twitter_position, state, "twitter")
-            if os.path.exists(reddit_actions_log):
-                cls._read_action_log(reddit_actions_log, reddit_position, state, "reddit")
-            
-            # 进程结束
+
+            if os.path.exists(agent_log):
+                cls._read_agent_log(agent_log, log_position, state, 0)
+
+            if os.path.exists(main_log):
+                _, current_round = cls._read_main_log(main_log, main_log_position, state)
+                state.current_round = current_round
+
             exit_code = process.returncode
-            
+
             if exit_code == 0:
                 state.runner_status = RunnerStatus.COMPLETED
                 state.completed_at = datetime.now().isoformat()
+                state.twitter_running = False
+                state.reddit_running = False
+                state.twitter_completed = True
+                state.reddit_completed = True
                 logger.info(f"模拟完成: {simulation_id}")
             else:
                 state.runner_status = RunnerStatus.FAILED
@@ -685,6 +719,125 @@ class SimulationRunner:
             logger.warning(f"读取动作日志失败: {log_path}, error={e}")
             return position
     
+    @classmethod
+    def _read_agent_log(
+        cls,
+        log_path: str,
+        position: int,
+        state: SimulationRunState,
+        round_counter: int
+    ) -> tuple:
+        """
+        读取 social.agent.log 日志文件，解析动作信息
+
+        日志格式示例:
+        INFO - 2026-03-19 11:33:37,810 - social.agent - Agent 10 performed action: create_post with args: {'content': '...'}
+
+        Args:
+            log_path: 日志文件路径
+            position: 上次读取位置
+            state: 运行状态对象
+            round_counter: 当前轮次计数器
+
+        Returns:
+            (new_position, new_round_counter)
+        """
+        import re
+
+        agent_names = cls._load_agent_names(state.simulation_id)
+
+        action_pattern = re.compile(
+            r'Agent (\d+) performed action: (\w+) with args: (\{.*\})'
+        )
+
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                f.seek(position)
+                for line in f:
+                    match = action_pattern.search(line)
+                    if match:
+                        agent_id = int(match.group(1))
+                        action_type = match.group(2)
+                        args_str = match.group(3)
+
+                        try:
+                            action_args = eval(args_str)
+                        except:
+                            action_args = {}
+
+                        agent_name = agent_names.get(agent_id, f"Agent {agent_id}")
+
+                        action = AgentAction(
+                            round_num=round_counter,
+                            timestamp=datetime.now().isoformat(),
+                            platform="twitter",
+                            agent_id=agent_id,
+                            agent_name=agent_name,
+                            action_type=action_type.upper(),
+                            action_args=action_args,
+                            success=True,
+                        )
+
+                        state.add_action(action)
+
+                return f.tell(), round_counter
+        except Exception as e:
+            logger.warning(f"读取social.agent.log失败: {log_path}, error={e}")
+            return position, round_counter
+
+    @classmethod
+    def _read_main_log(
+        cls,
+        log_path: str,
+        position: int,
+        state: SimulationRunState
+    ) -> tuple:
+        """
+        读取 simulation.log 文件，解析轮次信息
+
+        日志格式示例:
+        [轮次 9/15] 活跃Agent: 3
+        [轮次 10/15] 活跃Agent: 4
+
+        Args:
+            log_path: 日志文件路径
+            position: 上次读取位置（已忽略，每次重新打开读取）
+            state: 运行状态对象
+
+        Returns:
+            (new_position, current_round)
+        """
+        import re
+
+        round_pattern = re.compile(r'\[轮次 (\d+)/(\d+)\]')
+
+        current_round = 0
+        try:
+            if not os.path.exists(log_path):
+                return position, current_round
+
+            with open(log_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                lines = content.split('\n')
+                for line in lines:
+                    match = round_pattern.search(line)
+                    if match:
+                        current_round = int(match.group(1))
+                        total_rounds = int(match.group(2))
+                        if state.total_rounds == 0:
+                            state.total_rounds = total_rounds
+
+            return len(content), current_round
+        except ValueError as e:
+            if 'I/O operation on closed file' in str(e) or 'I/O operation' in str(e):
+                logger.warning(f"simulation.log 文件已关闭，忽略位置 {position}")
+                return 0, current_round
+            logger.warning(f"读取simulation.log失败: {log_path}, error={e}")
+            return position, current_round
+        except Exception as e:
+            logger.warning(f"读取simulation.log失败: {log_path}, error={e}")
+            return position, current_round
+
     @classmethod
     def _check_all_platforms_completed(cls, state: SimulationRunState) -> bool:
         """
@@ -879,10 +1032,106 @@ class SimulationRunner:
                         result=data.get("result"),
                         success=data.get("success", True),
                     ))
-                    
+
                 except json.JSONDecodeError:
                     continue
-        
+
+        return actions
+
+    @classmethod
+    def _read_actions_from_agent_log(
+        cls,
+        log_path: str,
+        simulation_id: str,
+        platform_filter: Optional[str] = None,
+        agent_id: Optional[int] = None,
+        round_num: Optional[int] = None
+    ) -> List[AgentAction]:
+        """
+        从 social.agent.log 文件读取动作
+
+        日志格式示例:
+        INFO - 2026-03-19 11:33:37,810 - social.agent - Agent 10 performed action: create_post with args: {'content': '...'}
+
+        Args:
+            log_path: 日志文件路径
+            simulation_id: 模拟ID，用于加载实体名称映射
+            platform_filter: 过滤平台
+            agent_id: 过滤 Agent ID
+            round_num: 过滤轮次
+
+        Returns:
+            动作列表
+        """
+        import re
+
+        if not os.path.exists(log_path):
+            return []
+
+        agent_names = cls._load_agent_names(simulation_id)
+
+        action_pattern = re.compile(
+            r'Agent (\d+) performed action: (\w+) with args: (\{.*\})'
+        )
+
+        timestamp_pattern = re.compile(
+            r'^INFO - (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}),(\d+)'
+        )
+
+        actions = []
+        last_timestamp = None
+        round_counter = 0
+
+        with open(log_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+
+                ts_match = timestamp_pattern.match(line)
+                if ts_match:
+                    last_timestamp = f"{ts_match.group(1)}.{ts_match.group(2)}"
+
+                if 'performed action:' not in line:
+                    continue
+
+                match = action_pattern.search(line)
+                if not match:
+                    continue
+
+                parsed_agent_id = int(match.group(1))
+                action_type = match.group(2).upper()
+                args_str = match.group(3)
+
+                if agent_id is not None and parsed_agent_id != agent_id:
+                    continue
+
+                try:
+                    action_args = eval(args_str)
+                except:
+                    action_args = {}
+
+                agent_name = agent_names.get(parsed_agent_id, f"Agent {parsed_agent_id}")
+
+                action = AgentAction(
+                    round_num=round_counter,
+                    timestamp=last_timestamp or datetime.now().isoformat(),
+                    platform="twitter",
+                    agent_id=parsed_agent_id,
+                    agent_name=agent_name,
+                    action_type=action_type,
+                    action_args=action_args,
+                    success=True,
+                )
+
+                if platform_filter and "twitter" != platform_filter:
+                    continue
+                if round_num is not None and round_counter != round_num:
+                    continue
+
+                actions.append(action)
+
+                if action_type in ['CREATE_POST', 'CREATE_COMMENT', 'QUOTE_POST', 'REFRESH']:
+                    round_counter += 1
+
         return actions
     
     @classmethod
@@ -895,55 +1144,62 @@ class SimulationRunner:
     ) -> List[AgentAction]:
         """
         获取所有平台的完整动作历史（无分页限制）
-        
+
         Args:
             simulation_id: 模拟ID
             platform: 过滤平台（twitter/reddit）
             agent_id: 过滤Agent
             round_num: 过滤轮次
-            
+
         Returns:
             完整的动作列表（按时间戳排序，新的在前）
         """
         sim_dir = os.path.join(cls.RUN_STATE_DIR, simulation_id)
         actions = []
-        
-        # 读取 Twitter 动作文件（根据文件路径自动设置 platform 为 twitter）
-        twitter_actions_log = os.path.join(sim_dir, "twitter", "actions.jsonl")
-        if not platform or platform == "twitter":
-            actions.extend(cls._read_actions_from_file(
-                twitter_actions_log,
-                default_platform="twitter",  # 自动填充 platform 字段
-                platform_filter=platform,
-                agent_id=agent_id, 
-                round_num=round_num
-            ))
-        
-        # 读取 Reddit 动作文件（根据文件路径自动设置 platform 为 reddit）
-        reddit_actions_log = os.path.join(sim_dir, "reddit", "actions.jsonl")
-        if not platform or platform == "reddit":
-            actions.extend(cls._read_actions_from_file(
-                reddit_actions_log,
-                default_platform="reddit",  # 自动填充 platform 字段
+
+        agent_log = os.path.join(sim_dir, "logs", "social.agent.log")
+        if os.path.exists(agent_log):
+            actions.extend(cls._read_actions_from_agent_log(
+                agent_log,
+                simulation_id,
                 platform_filter=platform,
                 agent_id=agent_id,
                 round_num=round_num
             ))
-        
-        # 如果分平台文件不存在，尝试读取旧的单一文件格式
+
         if not actions:
-            actions_log = os.path.join(sim_dir, "actions.jsonl")
-            actions = cls._read_actions_from_file(
-                actions_log,
-                default_platform=None,  # 旧格式文件中应该有 platform 字段
-                platform_filter=platform,
-                agent_id=agent_id,
-                round_num=round_num
-            )
-        
-        # 按时间戳排序（新的在前）
+            twitter_actions_log = os.path.join(sim_dir, "twitter", "actions.jsonl")
+            if not platform or platform == "twitter":
+                actions.extend(cls._read_actions_from_file(
+                    twitter_actions_log,
+                    default_platform="twitter",
+                    platform_filter=platform,
+                    agent_id=agent_id,
+                    round_num=round_num
+                ))
+
+            reddit_actions_log = os.path.join(sim_dir, "reddit", "actions.jsonl")
+            if not platform or platform == "reddit":
+                actions.extend(cls._read_actions_from_file(
+                    reddit_actions_log,
+                    default_platform="reddit",
+                    platform_filter=platform,
+                    agent_id=agent_id,
+                    round_num=round_num
+                ))
+
+            if not actions:
+                actions_log = os.path.join(sim_dir, "actions.jsonl")
+                actions = cls._read_actions_from_file(
+                    actions_log,
+                    default_platform=None,
+                    platform_filter=platform,
+                    agent_id=agent_id,
+                    round_num=round_num
+                )
+
         actions.sort(key=lambda x: x.timestamp, reverse=True)
-        
+
         return actions
     
     @classmethod

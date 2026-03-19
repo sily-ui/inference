@@ -1,21 +1,18 @@
 <template>
   <div class="env-setup-panel">
     <div class="scroll-container">
-      <!-- Step 01: 模拟实例 -->
-      <div class="step-card" :class="{ 'active': phase === 0, 'completed': phase > 0 }">
+      <div v-if="phase <= 0" class="step-card" :class="{ 'active': phase === 0 }">
         <div class="card-header">
           <div class="step-info">
             <span class="step-num">01</span>
             <span class="step-title">模拟实例初始化</span>
           </div>
           <div class="step-status">
-            <span v-if="phase > 0" class="badge success">已完成</span>
-            <span v-else class="badge processing">初始化</span>
+            <span class="badge processing">初始化</span>
           </div>
         </div>
         
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/create</p>
           <p class="description">
             新建simulation实例，拉取模拟世界参数模版
           </p>
@@ -41,7 +38,6 @@
         </div>
       </div>
 
-      <!-- Step 02: 生成 Agent 人设 -->
       <div class="step-card" :class="{ 'active': phase === 1, 'completed': phase > 1 }">
         <div class="card-header">
           <div class="step-info">
@@ -56,12 +52,10 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/prepare</p>
           <p class="description">
             结合上下文，自动调用工具从知识图谱梳理实体与关系，初始化模拟个体，并基于现实种子赋予他们独特的行为与记忆
           </p>
 
-          <!-- Profiles Stats -->
           <div v-if="profiles.length > 0" class="stats-grid">
             <div class="stat-card">
               <span class="stat-value">{{ profiles.length }}</span>
@@ -113,12 +107,11 @@
         </div>
       </div>
 
-      <!-- Step 03: 生成双平台模拟配置 -->
       <div class="step-card" :class="{ 'active': phase === 2, 'completed': phase > 2 }">
         <div class="card-header">
           <div class="step-info">
             <span class="step-num">03</span>
-            <span class="step-title">生成双平台模拟配置</span>
+            <span class="step-title">国内舆情平台模拟配置</span>
           </div>
           <div class="step-status">
             <span v-if="phase > 2" class="badge success">已完成</span>
@@ -128,14 +121,11 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/prepare</p>
           <p class="description">
             LLM 根据模拟需求与现实种子，智能设置世界时间流速、推荐算法、每个个体的活跃时间段、发言频率、事件触发等参数
           </p>
           
-          <!-- Config Preview -->
           <div v-if="simulationConfig" class="config-detail-panel">
-            <!-- 时间配置 -->
             <div class="config-block">
               <div class="config-grid">
                 <div class="config-item">
@@ -155,26 +145,44 @@
                   <span class="config-item-value">{{ simulationConfig.time_config?.agents_per_hour_min }}-{{ simulationConfig.time_config?.agents_per_hour_max }}</span>
                 </div>
               </div>
-              <div class="time-periods">
-                <div class="period-item">
-                  <span class="period-label">高峰时段</span>
-                  <span class="period-hours">{{ simulationConfig.time_config?.peak_hours?.join(':00, ') }}:00</span>
-                  <span class="period-multiplier">×{{ simulationConfig.time_config?.peak_activity_multiplier }}</span>
+              <div class="time-chart-container">
+                <div class="chart-header">
+                  <span class="chart-title">24小时活跃度趋势</span>
+                  <span class="chart-subtitle">基于中国人作息习惯的模拟时段配置</span>
                 </div>
-                <div class="period-item">
-                  <span class="period-label">工作时段</span>
-                  <span class="period-hours">{{ simulationConfig.time_config?.work_hours?.[0] }}:00-{{ simulationConfig.time_config?.work_hours?.slice(-1)[0] }}:00</span>
-                  <span class="period-multiplier">×{{ simulationConfig.time_config?.work_activity_multiplier }}</span>
+                <div class="time-chart" v-if="simulationConfig?.time_config">
+                  <div 
+                    v-for="hour in 24" 
+                    :key="hour"
+                    class="hour-bar-wrapper"
+                  >
+                    <div 
+                      class="hour-bar" 
+                      :class="getHourClass(hour - 1)"
+                      :style="{ height: getHourHeight(hour - 1) + '%' }"
+                    >
+                      <div class="bar-fill"></div>
+                    </div>
+                    <span class="hour-label" v-if="hour % 3 === 1">{{ (hour - 1).toString().padStart(2, '0') }}</span>
+                  </div>
                 </div>
-                <div class="period-item">
-                  <span class="period-label">早间时段</span>
-                  <span class="period-hours">{{ simulationConfig.time_config?.morning_hours?.[0] }}:00-{{ simulationConfig.time_config?.morning_hours?.slice(-1)[0] }}:00</span>
-                  <span class="period-multiplier">×{{ simulationConfig.time_config?.morning_activity_multiplier }}</span>
-                </div>
-                <div class="period-item">
-                  <span class="period-label">低谷时段</span>
-                  <span class="period-hours">{{ simulationConfig.time_config?.off_peak_hours?.[0] }}:00-{{ simulationConfig.time_config?.off_peak_hours?.slice(-1)[0] }}:00</span>
-                  <span class="period-multiplier">×{{ simulationConfig.time_config?.off_peak_activity_multiplier }}</span>
+                <div class="chart-legend">
+                  <div class="legend-item">
+                    <span class="legend-color peak"></span>
+                    <span>高峰 ×{{ simulationConfig?.time_config?.peak_activity_multiplier || 0 }}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color work"></span>
+                    <span>工作 ×{{ simulationConfig?.time_config?.work_activity_multiplier || 0 }}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color morning"></span>
+                    <span>早间 ×{{ simulationConfig?.time_config?.morning_activity_multiplier || 0 }}</span>
+                  </div>
+                  <div class="legend-item">
+                    <span class="legend-color off-peak"></span>
+                    <span>低谷 ×{{ simulationConfig?.time_config?.off_peak_activity_multiplier || 0 }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -270,36 +278,9 @@
                 <span class="config-block-title">推荐算法配置</span>
               </div>
               <div class="platforms-grid">
-                <div v-if="simulationConfig.twitter_config" class="platform-card">
-                  <div class="platform-card-header">
-                    <span class="platform-name">平台 1：广场 / 信息流</span>
-                  </div>
-                  <div class="platform-params">
-                    <div class="param-row">
-                      <span class="param-label">时效权重</span>
-                      <span class="param-value">{{ simulationConfig.twitter_config.recency_weight }}</span>
-                    </div>
-                    <div class="param-row">
-                      <span class="param-label">热度权重</span>
-                      <span class="param-value">{{ simulationConfig.twitter_config.popularity_weight }}</span>
-                    </div>
-                    <div class="param-row">
-                      <span class="param-label">相关性权重</span>
-                      <span class="param-value">{{ simulationConfig.twitter_config.relevance_weight }}</span>
-                    </div>
-                    <div class="param-row">
-                      <span class="param-label">病毒阈值</span>
-                      <span class="param-value">{{ simulationConfig.twitter_config.viral_threshold }}</span>
-                    </div>
-                    <div class="param-row">
-                      <span class="param-label">回音室强度</span>
-                      <span class="param-value">{{ simulationConfig.twitter_config.echo_chamber_strength }}</span>
-                    </div>
-                  </div>
-                </div>
                 <div v-if="simulationConfig.reddit_config" class="platform-card">
                   <div class="platform-card-header">
-                    <span class="platform-name">平台 2：话题 / 社区</span>
+                    <span class="platform-name">国内舆情平台</span>
                   </div>
                   <div class="platform-params">
                     <div class="param-row">
@@ -346,7 +327,6 @@
         </div>
       </div>
 
-      <!-- Step 04: 初始激活编排 -->
       <div class="step-card" :class="{ 'active': phase === 3, 'completed': phase > 3 }">
         <div class="card-header">
           <div class="step-info">
@@ -361,13 +341,11 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/prepare</p>
           <p class="description">
             基于叙事方向，自动生成初始激活事件与热点话题，引导模拟世界的初始状态
           </p>
 
           <div v-if="simulationConfig?.event_config" class="orchestration-content">
-            <!-- 叙事方向 -->
             <div class="narrative-box">
               <span class="box-label narrative-label">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="special-icon">
@@ -418,21 +396,18 @@
         </div>
       </div>
 
-      <!-- Step 05: 准备完成 -->
-      <div class="step-card" :class="{ 'active': phase === 4 }">
+      <div v-if="phase >= 4" class="step-card active">
         <div class="card-header">
           <div class="step-info">
-            <span class="step-num">05</span>
+            <span class="step-num">01</span>
             <span class="step-title">准备完成</span>
           </div>
           <div class="step-status">
-            <span v-if="phase >= 4" class="badge processing">进行中</span>
-            <span v-else class="badge pending">等待</span>
+            <span class="badge success">已完成</span>
           </div>
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/start</p>
           <p class="description">模拟环境已准备完成，可以开始运行模拟</p>
           
           <!-- 模拟轮数配置 - 只有在配置生成完成且轮数计算出来后才显示 -->
@@ -718,7 +693,7 @@ watch(currentStage, (newStage) => {
     phase.value = 2
     // 进入配置生成阶段，开始轮询配置
     if (!configTimer) {
-      addLog('开始生成双平台模拟配置...')
+      addLog('开始生成国内舆情平台模拟配置...')
       startConfigPolling()
     }
   } else if (newStage === '准备模拟脚本' || newStage === 'copying_scripts') {
@@ -774,7 +749,7 @@ const totalTopicsCount = computed(() => {
 const tokenEstimate = computed(() => {
   const agentCount = profiles.value.length || 0
   const rounds = useCustomRounds.value ? customMaxRounds.value : (autoGeneratedRounds.value || 40)
-  const platformCount = (simulationConfig.value?.twitter_config ? 1 : 0) + (simulationConfig.value?.reddit_config ? 1 : 0) || 2
+  const platformCount = 1
   
   // 基于OASIS模拟的token消耗估算
   // 基础消耗: 每轮每个Agent约 500-1000 tokens (prompt + completion)
@@ -832,6 +807,32 @@ const runtimeEstimate = computed(() => {
 })
 
 // Methods
+const getHourClass = (hour) => {
+  const config = simulationConfig.value?.time_config
+  if (!config) return 'off-peak'
+  if (config.peak_hours?.includes(hour)) return 'peak'
+  if (config.work_hours?.includes(hour)) return 'work'
+  if (config.morning_hours?.includes(hour)) return 'morning'
+  return 'off-peak'
+}
+
+const getHourHeight = (hour) => {
+  const config = simulationConfig.value?.time_config
+  if (!config) return 5
+  const multipliers = {
+    peak: config.peak_activity_multiplier || 1.5,
+    work: config.work_activity_multiplier || 0.7,
+    morning: config.morning_activity_multiplier || 0.4,
+    offPeak: config.off_peak_activity_multiplier || 0.05
+  }
+  const maxMultiplier = Math.max(...Object.values(multipliers))
+  let multiplier = multipliers.offPeak
+  if (config.peak_hours?.includes(hour)) multiplier = multipliers.peak
+  else if (config.work_hours?.includes(hour)) multiplier = multipliers.work
+  else if (config.morning_hours?.includes(hour)) multiplier = multipliers.morning
+  return Math.round((multiplier / maxMultiplier) * 100)
+}
+
 const addLog = (msg) => {
   emit('add-log', msg)
 }
@@ -1090,7 +1091,7 @@ const fetchConfigRealtime = async () => {
           addLog(`  ├─ 模拟时长: ${data.summary.simulation_hours}小时`)
           addLog(`  ├─ 初始帖子: ${data.summary.initial_posts_count}条`)
           addLog(`  ├─ 热点话题: ${data.summary.hot_topics_count}个`)
-          addLog(`  └─ 平台配置: Twitter ${data.summary.has_twitter_config ? '✓' : '✗'}, Reddit ${data.summary.has_reddit_config ? '✓' : '✗'}`)
+          addLog(`  └─ 平台配置: 国内舆情平台 ${data.summary.has_reddit_config ? '✓' : '✗'}`)
         }
         
         // 显示时间配置详情
@@ -1166,9 +1167,12 @@ watch(() => props.systemLogs?.length, () => {
 
 onMounted(() => {
   // 自动开始准备流程
+  addLog(`Step2 环境搭建初始化, simulationId: ${props.simulationId}`)
   if (props.simulationId) {
-    addLog('Step2 环境搭建初始化')
     startPrepareSimulation()
+  } else {
+    addLog('错误: 缺少 simulationId')
+    emit('update-status', 'error')
   }
 })
 
@@ -1258,14 +1262,6 @@ onUnmounted(() => {
 .badge.accent { background: #E3F2FD; color: #1565C0; }
 
 .card-content {
-  /* No extra padding - uses step-card's padding */
-}
-
-.api-note {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: #999;
-  margin-bottom: 8px;
 }
 
 .description {
@@ -1586,45 +1582,126 @@ onUnmounted(() => {
   color: #1E293B;
 }
 
-/* Time Periods */
-.time-periods {
+/* Time Chart */
+.time-chart-container {
   margin-top: 12px;
+  background: #FAFAFA;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.chart-header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  margin-bottom: 16px;
 }
 
-.period-item {
+.chart-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1E293B;
+}
+
+.chart-subtitle {
+  font-size: 11px;
+  color: #64748B;
+}
+
+.time-chart {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 120px;
+  padding: 0 8px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.hour-bar-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+}
+
+.hour-bar {
+  width: 100%;
+  max-width: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  transition: height 0.3s ease;
+}
+
+.bar-fill {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  min-height: 4px;
+}
+
+.hour-bar.peak .bar-fill {
+  background: linear-gradient(180deg, #F97316 0%, #EA580C 100%);
+}
+
+.hour-bar.work .bar-fill {
+  background: linear-gradient(180deg, #6366F1 0%, #4F46E5 100%);
+}
+
+.hour-bar.morning .bar-fill {
+  background: linear-gradient(180deg, #14B8A6 0%, #0D9488 100%);
+}
+
+.hour-bar.off-peak .bar-fill {
+  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
+}
+
+.hour-label {
+  font-size: 10px;
+  color: #64748B;
+  margin-top: 4px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: #F9F9F9;
-  border-radius: 6px;
-}
-
-.period-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: #64748B;
-  min-width: 70px;
-}
-
-.period-hours {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  gap: 4px;
+  font-size: 10px;
   color: #475569;
-  flex: 1;
+  padding: 2px 6px;
+  background: #F1F5F9;
+  border-radius: 4px;
 }
 
-.period-multiplier {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  color: #6366F1;
-  background: #EEF2FF;
-  padding: 2px 6px;
-  border-radius: 4px;
+.legend-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.legend-color.peak {
+  background: linear-gradient(180deg, #F97316 0%, #EA580C 100%);
+}
+
+.legend-color.work {
+  background: linear-gradient(180deg, #6366F1 0%, #4F46E5 100%);
+}
+
+.legend-color.morning {
+  background: linear-gradient(180deg, #14B8A6 0%, #0D9488 100%);
+}
+
+.legend-color.off-peak {
+  background: linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
 }
 
 /* Agents Cards */

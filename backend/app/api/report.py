@@ -6,7 +6,7 @@ Report API路由
 import os
 import traceback
 import threading
-from flask import request, jsonify, send_file
+from flask import request, jsonify, send_file, current_app
 
 from . import report_bp
 from ..config import Config
@@ -177,54 +177,56 @@ def generate_report():
         )
 
         # 定义后台任务
-        def run_generate():
-            try:
-                task_manager.update_task(
-                    task_id,
-                    status=TaskStatus.PROCESSING,
-                    progress=0,
-                    message="初始化Report Agent...",
-                )
-
-                # 创建Report Agent
-                agent = ReportAgent(
-                    graph_id=graph_id,
-                    simulation_id=simulation_id,
-                    simulation_requirement=simulation_requirement,
-                )
-
-                # 进度回调
-                def progress_callback(stage, progress, message):
+        def run_generate(app):
+            # 在后台线程中创建应用上下文
+            with app.app_context():
+                try:
                     task_manager.update_task(
-                        task_id, progress=progress, message=f"[{stage}] {message}"
-                    )
-
-                # 生成报告（传入预先生成的 report_id）
-                report = agent.generate_report(
-                    progress_callback=progress_callback, report_id=report_id
-                )
-
-                # 保存报告
-                ReportManager.save_report(report)
-
-                if report.status == ReportStatus.COMPLETED:
-                    task_manager.complete_task(
                         task_id,
-                        result={
-                            "report_id": report.report_id,
-                            "simulation_id": simulation_id,
-                            "status": "completed",
-                        },
+                        status=TaskStatus.PROCESSING,
+                        progress=0,
+                        message="初始化Report Agent...",
                     )
-                else:
-                    task_manager.fail_task(task_id, report.error or "报告生成失败")
 
-            except Exception as e:
-                logger.error(f"报告生成失败: {str(e)}")
-                task_manager.fail_task(task_id, str(e))
+                    # 创建Report Agent
+                    agent = ReportAgent(
+                        graph_id=graph_id,
+                        simulation_id=simulation_id,
+                        simulation_requirement=simulation_requirement,
+                    )
 
-        # 启动后台线程
-        thread = threading.Thread(target=run_generate, daemon=True)
+                    # 进度回调
+                    def progress_callback(stage, progress, message):
+                        task_manager.update_task(
+                            task_id, progress=progress, message=f"[{stage}] {message}"
+                        )
+
+                    # 生成报告（传入预先生成的 report_id）
+                    report = agent.generate_report(
+                        progress_callback=progress_callback, report_id=report_id
+                    )
+
+                    # 保存报告
+                    ReportManager.save_report(report)
+
+                    if report.status == ReportStatus.COMPLETED:
+                        task_manager.complete_task(
+                            task_id,
+                            result={
+                                "report_id": report.report_id,
+                                "simulation_id": simulation_id,
+                                "status": "completed",
+                            },
+                        )
+                    else:
+                        task_manager.fail_task(task_id, report.error or "报告生成失败")
+
+                except Exception as e:
+                    logger.error(f"报告生成失败: {str(e)}")
+                    task_manager.fail_task(task_id, str(e))
+
+        # 启动后台线程，传递应用实例
+        thread = threading.Thread(target=run_generate, args=(current_app._get_current_object(),), daemon=True)
         thread.start()
 
         return jsonify(
@@ -330,7 +332,12 @@ def get_report(report_id: str):
                 "outline": {...},
                 "markdown_content": "...",
                 "created_at": "...",
-                "completed_at": "..."
+                "completed_at": "...",
+                "files": {
+                    "markdown": "reports/xxx/full_report.md",
+                    "pdf": "reports/xxx/xxx.pdf",
+                    "word": "reports/xxx/xxx.docx"
+                }
             }
         }
     """
@@ -340,7 +347,29 @@ def get_report(report_id: str):
         if not report:
             return jsonify({"success": False, "error": f"报告不存在: {report_id}"}), 404
 
-        return jsonify({"success": True, "data": report.to_dict()})
+        # 获取报告数据
+        report_data = report.to_dict()
+
+        # 从数据库获取文件路径信息
+        try:
+            from ..models.database import Report as DbReport
+            db_report = DbReport.query.get(report_id)
+            if db_report:
+                report_data["files"] = {
+                    "markdown": db_report.markdown_file_path,
+                    "pdf": db_report.pdf_file_path,
+                    "word": db_report.word_file_path,
+                }
+                # 同时添加下载URL
+                report_data["download_urls"] = {
+                    "markdown": f"/api/report/{report_id}/download",
+                    "pdf": f"/api/report/{report_id}/download/pdf",
+                    "word": f"/api/report/{report_id}/download/word",
+                }
+        except Exception as e:
+            logger.warning(f"获取报告文件路径失败: {e}")
+
+        return jsonify({"success": True, "data": report_data})
 
     except Exception as e:
         logger.error(f"获取报告失败: {str(e)}")
@@ -494,10 +523,14 @@ def download_report_pdf(report_id: str):
             if not formatted_sections and report.markdown_content:
                 formatted_sections = None
 
+            # 从 outline 获取标题和摘要
+            title = report.outline.title if report.outline else "预测报告"
+            summary = report.outline.summary if report.outline else ""
+            
             pdf_path = generate_report_pdf(
                 report_id=report_id,
-                title=report.title or "预测报告",
-                summary=report.summary or "",
+                title=title,
+                summary=summary,
                 markdown_content=report.markdown_content or "",
                 sections=formatted_sections,
             )
@@ -548,10 +581,14 @@ def download_report_word(report_id: str):
             if not formatted_sections and report.markdown_content:
                 formatted_sections = None
 
+            # 从 outline 获取标题和摘要
+            title = report.outline.title if report.outline else "预测报告"
+            summary = report.outline.summary if report.outline else ""
+            
             word_path = generate_report_word(
                 report_id=report_id,
-                title=report.title or "预测报告",
-                summary=report.summary or "",
+                title=title,
+                summary=summary,
                 markdown_content=report.markdown_content or "",
                 sections=formatted_sections,
             )

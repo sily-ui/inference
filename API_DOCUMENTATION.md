@@ -1953,16 +1953,3 @@ created → preparing → ready → running → completed/stopped/failed
 
 ---
 
-## 更新日志
-
-### v1.0.2
-- 新增实时状态监控接口
-- 优化Interview采访功能，支持双平台模式
-- 新增批量采访接口
-
-### v1.0.1
-- 新增分章节报告输出
-- 优化Token统计
-
-### v1.0.0
-- 初始版本发布

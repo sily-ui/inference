@@ -77,13 +77,14 @@ class PlatformActionLogger:
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
-    def log_round_end(self, round_num: int, actions_count: int):
+    def log_round_end(self, round_num: int, actions_count: int, simulated_hour: int = 0):
         """记录轮次结束"""
         entry = {
             "round": round_num,
             "timestamp": datetime.now().isoformat(),
             "event_type": "round_end",
             "actions_count": actions_count,
+            "simulated_hours": simulated_hour,
         }
         
         with open(self.log_path, 'a', encoding='utf-8') as f:
@@ -251,13 +252,14 @@ class ActionLogger:
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
-    def log_round_end(self, round_num: int, actions_count: int, platform: str):
+    def log_round_end(self, round_num: int, actions_count: int, platform: str, simulated_hour: int = 0):
         entry = {
             "round": round_num,
             "timestamp": datetime.now().isoformat(),
             "platform": platform,
             "event_type": "round_end",
             "actions_count": actions_count,
+            "simulated_hours": simulated_hour,
         }
         
         with open(self.log_path, 'a', encoding='utf-8') as f:

@@ -1,31 +1,19 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
     <header class="app-header">
       <div class="header-left">
         <div class="brand" @click="router.push('/')">MIROFISH</div>
       </div>
       
       <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
-            :key="mode"
-            class="switch-btn"
-            :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
-          >
-            {{ { graph: '图谱', split: '双栏', workbench: '工作台' }[mode] }}
-          </button>
-        </div>
+        <StepProgressBar 
+          :steps="['本体生成', '图谱构建', '模拟', '报告', '舆情预测']" 
+          :currentStep="2"
+          @step-click="handleProgressBarClick"
+        />
       </div>
 
       <div class="header-right">
-        <div class="workflow-step">
-          <span class="step-num">Step 3/5</span>
-          <span class="step-name">开始模拟</span>
-        </div>
-        <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
           {{ statusText }}
@@ -33,9 +21,7 @@
       </div>
     </header>
 
-    <!-- Main Content Area -->
     <main class="content-area">
-      <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
         <GraphPanel 
           :graphData="graphData"
@@ -47,7 +33,6 @@
         />
       </div>
 
-      <!-- Right Panel: Step3 开始模拟 -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step3Simulation
           :simulationId="currentSimulationId"
@@ -70,6 +55,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
+import StepProgressBar from '../components/StepProgressBar.vue'
 import Step3Simulation from '../components/Step3Simulation.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation, getSimulationConfig, stopSimulation, closeSimulationEnv, getEnvStatus } from '../api/simulation'
@@ -77,24 +63,20 @@ import { getSimulation, getSimulationConfig, stopSimulation, closeSimulationEnv,
 const route = useRoute()
 const router = useRouter()
 
-// Props
 const props = defineProps({
   simulationId: String
 })
 
-// Layout State
 const viewMode = ref('split')
 
-// Data State
 const currentSimulationId = ref(route.params.simulationId)
-// 直接在初始化时从 query 参数获取 maxRounds，确保子组件能立即获取到值
 const maxRounds = ref(route.query.maxRounds ? parseInt(route.query.maxRounds) : null)
-const minutesPerRound = ref(30) // 默认每轮30分钟
+const minutesPerRound = ref(30)
 const projectData = ref(null)
 const graphData = ref(null)
 const graphLoading = ref(false)
 const systemLogs = ref([])
-const currentStatus = ref('processing') // processing | completed | error
+const currentStatus = ref('processing')
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -128,6 +110,31 @@ const addLog = (msg) => {
   systemLogs.value.push({ time, msg })
   if (systemLogs.value.length > 200) {
     systemLogs.value.shift()
+  }
+}
+
+// 处理进度条点击 - 跳转到对应视图
+const handleProgressBarClick = (stepIdx) => {
+  const targetStep = stepIdx + 1
+  
+  if (targetStep === 1 || targetStep === 2) {
+    if (projectData.value?.project_id) {
+      router.push({ name: 'Process', params: { projectId: projectData.value.project_id } })
+    } else {
+      router.push('/')
+    }
+  } else if (targetStep === 3) {
+    // 跳转到 Simulation 环境设置页面
+    const simId = currentSimulationId.value || projectData.value?.simulation_id
+    if (simId) {
+      router.push({ name: 'Simulation', params: { simulationId: simId } })
+    } else {
+      addLog('错误: 缺少 simulationId')
+    }
+  } else if (targetStep === 4 && currentSimulationId.value) {
+    router.push({ name: 'Report', params: { reportId: `report_${currentSimulationId.value.split('_')[1]}` } })
+  } else if (targetStep === 5 && currentSimulationId.value) {
+    router.push({ name: 'Prediction', params: { reportId: `report_${currentSimulationId.value.split('_')[1]}` } })
   }
 }
 

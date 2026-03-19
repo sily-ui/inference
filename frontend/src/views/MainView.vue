@@ -1,44 +1,19 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
     <header class="app-header">
       <div class="header-left">
         <div class="brand" @click="router.push('/')">MIROFISH</div>
       </div>
       
-      <!-- 步骤进度条 -->
       <div class="header-center">
-        <div class="step-progress-bar">
-          <div 
-            v-for="(step, idx) in steps" 
-            :key="idx"
-            class="progress-step"
-            :class="{ 
-              'completed': step.status === 'completed', 
-              'active': step.status === 'running',
-              'viewing': step.status === 'viewing',
-              'pending': step.status === 'pending',
-              'need-rerun': step.needRerun
-            }"
-            @click="goToStep(idx)"
-          >
-            <div class="step-circle">
-              <span v-if="step.status === 'completed'">✓</span>
-              <span v-else-if="step.needRerun" class="rerun-icon">↻</span>
-              <span v-else>{{ idx + 1 }}</span>
-            </div>
-            <span class="step-label">{{ step.name }}</span>
-            <div v-if="idx < steps.length - 1" class="step-line" :class="{ 'completed': step.status === 'completed' || step.needRerun }"></div>
-          </div>
-        </div>
+        <StepProgressBar 
+          :steps="stepNames" 
+          :currentStep="currentStep - 1"
+          @step-click="handleProgressBarClick"
+        />
       </div>
 
       <div class="header-right">
-        <div class="workflow-step">
-          <span class="step-num">Step {{ currentStep }}/5</span>
-          <span class="step-name">{{ stepNames[currentStep - 1] }}</span>
-        </div>
-        <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
           {{ statusText }}
@@ -46,9 +21,7 @@
       </div>
     </header>
 
-    <!-- Main Content Area -->
     <main class="content-area">
-      <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
         <GraphPanel 
           :graphData="graphData"
@@ -59,9 +32,7 @@
         />
       </div>
 
-      <!-- Right Panel: Step Components -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
-        <!-- Step 1: 图谱构建 -->
         <Step1GraphBuild 
           v-if="currentStep === 1"
           :currentPhase="currentPhase"
@@ -72,7 +43,6 @@
           :systemLogs="systemLogs"
           @next-step="handleNextStep"
         />
-        <!-- Step 2: 环境搭建 -->
         <Step2EnvSetup
           v-else-if="currentStep === 2"
           :projectData="projectData"
@@ -91,70 +61,36 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
+import StepProgressBar from '../components/StepProgressBar.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
-import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
+import { generateOntology, generateOntologyFromText, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
 import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
 
 const route = useRoute()
 const router = useRouter()
 
-// Layout State
-const viewMode = ref('split') // graph | split | workbench
+const viewMode = ref('split')
 
-// Step State
-const currentStep = ref(1) // 1: 图谱构建, 2: 环境搭建, 3: 开始模拟, 4: 报告生成, 5: 深度互动
-const stepNames = ['上传文档', '图谱构建', '环境搭建', '运行模拟', '生成报告']
+const currentStep = ref(1)
+const stepNames = ['本体生成', '图谱构建', '模拟', '报告', '舆情预测']
 
-// 步骤状态管理
-// status: pending(未开始) / running(进行中) / completed(已完成) / viewing(查看中) / need-rerun(需重新运行)
 const steps = ref([
-  { name: '上传文档', status: 'pending', data: null, needRerun: false },
+  { name: '本体生成', status: 'pending', data: null, needRerun: false },
   { name: '图谱构建', status: 'pending', data: null, needRerun: false },
-  { name: '环境搭建', status: 'pending', data: null, needRerun: false },
-  { name: '运行模拟', status: 'pending', data: null, needRerun: false },
-  { name: '生成报告', status: 'pending', data: null, needRerun: false },
+  { name: '模拟', status: 'pending', data: null, needRerun: false },
+  { name: '报告', status: 'pending', data: null, needRerun: false },
+  { name: '舆情预测', status: 'pending', data: null, needRerun: false },
 ])
 
-// 跳转到指定步骤
-const goToStep = (idx) => {
-  const targetStep = idx + 1
-  
-  // 只能跳转到已完成或当前步骤
-  if (targetStep > currentStep.value) return
-  
-  // 如果点击当前步骤，不做操作
-  if (targetStep === currentStep.value) return
-  
-  // 返回查看前一步，将当前步骤标记为需要重新运行
-  if (targetStep < currentStep.value) {
-    // 标记当前步骤需要重新运行
-    steps.value[currentStep.value - 1].needRerun = true
-    // 设置为查看模式
-    steps.value[targetStep - 1].status = 'viewing'
-    // 清除后续步骤的状态
-    for (let i = targetStep; i < steps.value.length; i++) {
-      if (steps.value[i].status === 'running') {
-        steps.value[i].status = 'pending'
-      }
-    }
-    // 更新当前步骤
-    currentStep.value = targetStep
-    addLog(`返回查看 Step ${targetStep}: ${stepNames[targetStep - 1]}，后续步骤需重新运行`)
-  }
-}
-
-// 标记步骤完成
 const markStepCompleted = (idx, data = null) => {
   steps.value[idx].status = 'completed'
   steps.value[idx].data = data
   steps.value[idx].needRerun = false
 }
 
-// 标记步骤进行中
 const markStepRunning = (idx) => {
   steps.value[idx].status = 'running'
-  // 清除之前查看状态
   steps.value.forEach((s, i) => {
     if (i < idx && s.status === 'viewing') {
       s.status = 'completed'
@@ -170,9 +106,30 @@ const checkNeedRerun = (idx) => {
 // 步骤切换时检查是否需要重新运行
 const handleStepChange = (newStep) => {
   if (checkNeedRerun(newStep - 1)) {
-    // 需要重新运行，触发相应的重新初始化逻辑
     addLog(`Step ${newStep} 需要重新运行，将重新初始化...`)
-    // 这里可以添加重新初始化的逻辑
+  }
+}
+
+// 处理进度条点击 - 跳转到对应视图
+const handleProgressBarClick = (stepIdx) => {
+  const targetStep = stepIdx + 1
+  
+  if (targetStep === 1 || targetStep === 2) {
+    currentStep.value = targetStep
+  } else if (targetStep === 3 && projectData.value?.simulation_id) {
+    router.push({ name: 'Simulation', params: { simulationId: projectData.value.simulation_id } })
+  } else if (targetStep === 4 && projectData.value?.simulation_id) {
+    const simulationId = projectData.value.simulation_id
+    router.push({ name: 'Simulation', params: { simulationId } })
+    setTimeout(() => {
+      router.push({ name: 'Report', params: { reportId: `report_${simulationId.split('_')[1]}` } })
+    }, 100)
+  } else if (targetStep === 5 && projectData.value?.simulation_id) {
+    const simulationId = projectData.value.simulation_id
+    router.push({ name: 'Simulation', params: { simulationId } })
+    setTimeout(() => {
+      router.push({ name: 'Prediction', params: { reportId: `report_${simulationId.split('_')[1]}` } })
+    }, 100)
   }
 }
 
@@ -284,9 +241,9 @@ const initProject = async () => {
 
 const handleNewProject = async () => {
   const pending = getPendingUpload()
-  if (!pending.isPending || pending.files.length === 0) {
-    error.value = 'No pending files found.'
-    addLog('Error: No pending files found for new project.')
+  if (!pending.isPending) {
+    error.value = 'No pending data found.'
+    addLog('Error: No pending data found for new project.')
     return
   }
   
@@ -294,13 +251,30 @@ const handleNewProject = async () => {
     loading.value = true
     currentPhase.value = 0
     ontologyProgress.value = { message: 'Uploading and analyzing docs...' }
-    addLog('Starting ontology generation: Uploading files...')
     
-    const formData = new FormData()
-    pending.files.forEach(f => formData.append('files', f))
-    formData.append('simulation_requirement', pending.simulationRequirement)
+    let res
     
-    const res = await generateOntology(formData)
+    if (pending.dataSource === 'social' && pending.tavilyData) {
+      addLog('Starting ontology generation from Tavily search results...')
+      res = await generateOntologyFromText({
+        text: pending.tavilyData.extracted_text,
+        simulation_requirement: pending.simulationRequirement,
+        summary: pending.tavilyData.summary,
+        key_points: pending.tavilyData.key_points,
+        sources: pending.tavilyData.sources
+      })
+    } else if (pending.files.length > 0) {
+      addLog('Starting ontology generation: Uploading files...')
+      const formData = new FormData()
+      pending.files.forEach(f => formData.append('files', f))
+      formData.append('simulation_requirement', pending.simulationRequirement)
+      res = await generateOntology(formData)
+    } else {
+      error.value = 'No files or Tavily data found.'
+      addLog('Error: No files or Tavily data found.')
+      return
+    }
+    
     if (res.success) {
       clearPendingUpload()
       currentProjectId.value = res.data.project_id

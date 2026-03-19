@@ -248,8 +248,6 @@ def create_simulation():
         state = manager.create_simulation(
             project_id=project_id,
             graph_id=graph_id,
-            enable_twitter=data.get("enable_twitter", True),
-            enable_reddit=data.get("enable_reddit", True),
         )
 
         return jsonify({"success": True, "data": state.to_dict()})
@@ -1027,6 +1025,49 @@ def get_simulation_history():
         ), 500
 
 
+@simulation_bp.route("/<simulation_id>", methods=["DELETE"])
+def delete_simulation(simulation_id: str):
+    """
+    删除模拟记录
+
+    删除模拟及其关联的数据（运行状态、配置文件等）
+
+    路径参数：
+        simulation_id: 模拟ID
+
+    返回：
+        {
+            "success": true,
+            "message": "模拟已删除: sim_xxx"
+        }
+    """
+    try:
+        import shutil
+        from ..config import Config
+
+        # 构建模拟目录路径
+        sim_dir = os.path.join(Config.DATA_DIR, "simulations", simulation_id)
+
+        if not os.path.exists(sim_dir):
+            return jsonify(
+                {"success": False, "error": f"模拟不存在: {simulation_id}"}
+            ), 404
+
+        # 删除模拟目录
+        shutil.rmtree(sim_dir)
+
+        logger.info(f"模拟已删除: {simulation_id}")
+        return jsonify(
+            {"success": True, "message": f"模拟已删除: {simulation_id}"}
+        )
+
+    except Exception as e:
+        logger.error(f"删除模拟失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
 @simulation_bp.route("/<simulation_id>/profiles", methods=["GET"])
 def get_simulation_profiles(simulation_id: str):
     """
@@ -1351,9 +1392,7 @@ def download_simulation_script(script_name: str):
     下载模拟运行脚本文件（通用脚本，位于 backend/scripts/）
 
     script_name可选值：
-        - run_twitter_simulation.py
-        - run_reddit_simulation.py
-        - run_parallel_simulation.py
+        - run_simulation.py
         - action_logger.py
     """
     try:
@@ -1364,9 +1403,7 @@ def download_simulation_script(script_name: str):
 
         # 验证脚本名称
         allowed_scripts = [
-            "run_twitter_simulation.py",
-            "run_reddit_simulation.py",
-            "run_parallel_simulation.py",
+            "run_simulation.py",
             "action_logger.py",
         ]
 

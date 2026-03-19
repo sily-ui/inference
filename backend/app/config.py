@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 project_root_env = os.path.join(os.path.dirname(__file__), "../../.env")
 
 if os.path.exists(project_root_env):
-    load_dotenv(project_root_env, override=False)
+    load_dotenv(project_root_env, override=True)
     print(f"[DEBUG] 加载 .env 文件: {project_root_env}")
 else:
     print(f"[DEBUG] .env 文件不存在: {project_root_env}")

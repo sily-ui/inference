@@ -1158,9 +1158,22 @@ class ReportAgent:
             progress_callback("planning", 0, "正在分析模拟需求...")
 
         # 首先获取模拟上下文
-        context = self.zep_tools.get_simulation_context(
-            graph_id=self.graph_id, simulation_requirement=self.simulation_requirement
-        )
+        try:
+            context = self.zep_tools.get_simulation_context(
+                graph_id=self.graph_id,
+                simulation_requirement=self.simulation_requirement,
+            )
+        except Exception as e:
+            logger.warning(f"获取模拟上下文失败，使用空上下文: {str(e)}")
+            context = {
+                "graph_statistics": {
+                    "total_nodes": 0,
+                    "total_edges": 0,
+                    "entity_types": {},
+                },
+                "total_entities": 0,
+                "related_facts": [],
+            }
 
         if progress_callback:
             progress_callback("planning", 30, "正在生成报告大纲...")
@@ -2300,26 +2313,36 @@ class ReportManager:
             "updated_at": datetime.now().isoformat(),
         }
 
-        # 保存到数据库
+        # 保存到文件系统（始终执行，不依赖数据库）
         try:
-            db_progress = DbReportProgress.query.get(report_id)
-            if not db_progress:
-                db_progress = DbReportProgress(report_id=report_id)
-                db.session.add(db_progress)
-            db_progress.status = status
-            db_progress.progress = progress
-            db_progress.message = message
-            db_progress.current_section = current_section
-            db_progress.completed_sections = completed_sections or []
-            db_progress.updated_at = datetime.now()
-            db.session.commit()
+            with open(cls._get_progress_path(report_id), "w", encoding="utf-8") as f:
+                json.dump(progress_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logger.warning(f"保存进度到数据库失败: {e}")
-            db.session.rollback()
+            logger.warning(f"保存进度到文件系统失败: {e}")
 
-        # 保存到文件系统
-        with open(cls._get_progress_path(report_id), "w", encoding="utf-8") as f:
-            json.dump(progress_data, f, ensure_ascii=False, indent=2)
+        # 保存到数据库（可选，失败不影响主流程）
+        try:
+            # 尝试获取当前应用上下文
+            from flask import has_app_context, current_app
+
+            if has_app_context():
+                # 已经有应用上下文，直接使用
+                db_progress = DbReportProgress.query.get(report_id)
+                if not db_progress:
+                    db_progress = DbReportProgress(report_id=report_id)
+                    db.session.add(db_progress)
+                db_progress.status = status
+                db_progress.progress = progress
+                db_progress.message = message
+                db_progress.current_section = current_section
+                db_progress.completed_sections = completed_sections or []
+                db_progress.updated_at = datetime.now()
+                db.session.commit()
+                logger.debug(f"进度已保存到数据库: {report_id} - {status} ({progress}%)")
+            else:
+                logger.warning(f"没有应用上下文，跳过数据库保存: {report_id}")
+        except Exception as e:
+            logger.warning(f"保存进度到数据库失败（使用文件系统备份）: {e}")
 
     @classmethod
     def get_progress(cls, report_id: str) -> Optional[Dict[str, Any]]:
@@ -2552,52 +2575,88 @@ class ReportManager:
 
     @classmethod
     def save_report(cls, report: Report) -> None:
-        """保存报告元信息和完整报告（同时保存到数据库和文件系统）"""
+        """保存报告元信息和完整报告（优先保存到文件系统）"""
         cls._ensure_report_folder(report.report_id)
 
-        # 保存到数据库
+        # 保存到文件系统（始终执行，不依赖数据库）
         try:
-            db_report = DbReport.query.get(report.report_id)
-            if not db_report:
-                db_report = DbReport(id=report.report_id)
-                db.session.add(db_report)
-
-            db_report.simulation_id = report.simulation_id
-            db_report.title = report.outline.title if report.outline else None
-            db_report.summary = report.outline.summary if report.outline else None
-            db_report.status = (
-                report.status.value
-                if hasattr(report.status, "value")
-                else str(report.status)
-            )
-            db_report.outline = report.outline.to_dict() if report.outline else None
-            db_report.markdown_content = report.markdown_content
-            db_report.error = report.error
-            db_report.created_at = report.created_at or datetime.now().isoformat()
-            db_report.updated_at = datetime.now().isoformat()
-
-            db.session.commit()
-            logger.info(f"报告已保存到数据库: {report.report_id}")
+            with open(
+                cls._get_report_path(report.report_id), "w", encoding="utf-8"
+            ) as f:
+                json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
+            logger.info(f"报告已保存到文件系统: {report.report_id}")
         except Exception as e:
-            logger.warning(f"保存报告到数据库失败: {e}")
-            db.session.rollback()
-
-        # 保存到文件系统（保持兼容）
-        with open(cls._get_report_path(report.report_id), "w", encoding="utf-8") as f:
-            json.dump(report.to_dict(), f, ensure_ascii=False, indent=2)
+            logger.warning(f"保存报告到文件系统失败: {e}")
 
         # 保存大纲
         if report.outline:
-            cls.save_outline(report.report_id, report.outline)
+            try:
+                cls.save_outline(report.report_id, report.outline)
+            except Exception as e:
+                logger.warning(f"保存大纲失败: {e}")
 
         # 保存完整Markdown报告
         if report.markdown_content:
-            with open(
-                cls._get_report_markdown_path(report.report_id), "w", encoding="utf-8"
-            ) as f:
-                f.write(report.markdown_content)
+            try:
+                with open(
+                    cls._get_report_markdown_path(report.report_id),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(report.markdown_content)
+            except Exception as e:
+                logger.warning(f"保存Markdown报告失败: {e}")
 
-        logger.info(f"报告已保存: {report.report_id}")
+        # 计算文件路径（相对于 UPLOAD_FOLDER）
+        report_folder = f"reports/{report.report_id}"
+        markdown_path = f"{report_folder}/full_report.md"
+        pdf_path = f"{report_folder}/{report.report_id}.pdf"
+        word_path = f"{report_folder}/{report.report_id}.docx"
+
+        # 检查文件是否存在
+        import os as os_check
+        base_path = Config.UPLOAD_FOLDER
+
+        # 保存到数据库（可选，失败不影响主流程）
+        try:
+            # 尝试获取当前应用上下文
+            from flask import has_app_context
+
+            if has_app_context():
+                # 已经有应用上下文，直接使用
+                db_report = DbReport.query.get(report.report_id)
+                if not db_report:
+                    db_report = DbReport(id=report.report_id)
+                    db.session.add(db_report)
+
+                db_report.simulation_id = report.simulation_id
+                db_report.title = report.outline.title if report.outline else None
+                db_report.summary = report.outline.summary if report.outline else None
+                db_report.status = (
+                    report.status.value
+                    if hasattr(report.status, "value")
+                    else str(report.status)
+                )
+                db_report.outline = report.outline.to_dict() if report.outline else None
+                db_report.markdown_content = report.markdown_content
+                db_report.error = report.error
+                db_report.created_at = report.created_at or datetime.now().isoformat()
+                db_report.updated_at = datetime.now().isoformat()
+
+                # 保存文件路径
+                if os_check.path.exists(os_check.join(base_path, markdown_path)):
+                    db_report.markdown_file_path = markdown_path
+                if os_check.path.exists(os_check.join(base_path, pdf_path)):
+                    db_report.pdf_file_path = pdf_path
+                if os_check.path.exists(os_check.join(base_path, word_path)):
+                    db_report.word_file_path = word_path
+
+                db.session.commit()
+                logger.info(f"报告已保存到数据库: {report.report_id}")
+            else:
+                logger.warning(f"没有应用上下文，跳过数据库保存: {report.report_id}")
+        except Exception as e:
+            logger.warning(f"保存报告到数据库失败（使用文件系统备份）: {e}")
 
     @classmethod
     def get_report(cls, report_id: str) -> Optional[Report]:

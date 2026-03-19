@@ -16,7 +16,6 @@
         </div>
         
         <div class="card-content">
-          <p class="api-note">POST /api/graph/ontology/generate</p>
           <p class="description">
             LLM分析文档内容与模拟需求，提取出现实种子，自动生成合适的本体结构
           </p>
@@ -120,7 +119,6 @@
         </div>
 
         <div class="card-content">
-          <p class="api-note">POST /api/graph/build</p>
           <p class="description">
             基于生成的本体，将文档自动分块后调用 Zep 构建知识图谱，提取实体和关系，并形成时序记忆与社区摘要
           </p>
@@ -156,7 +154,6 @@
         </div>
         
         <div class="card-content">
-          <p class="api-note">POST /api/simulation/create</p>
           <p class="description">图谱构建已完成，请进入下一步进行模拟环境搭建</p>
           <button 
             class="action-btn" 
@@ -207,8 +204,6 @@ const handleEnterEnvSetup = async () => {
     const res = await createSimulation({
       project_id: props.projectData.project_id,
       graph_id: props.projectData.graph_id,
-      enable_twitter: true,
-      enable_reddit: true
     })
     
     if (res.success && res.data?.simulation_id) {
@@ -333,13 +328,6 @@ watch(() => props.systemLogs.length, () => {
 .badge.processing { background: #FF5722; color: #FFF; }
 .badge.accent { background: #FF5722; color: #FFF; }
 .badge.pending { background: #F5F5F5; color: #999; }
-
-.api-note {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  color: #999;
-  margin-bottom: 8px;
-}
 
 .description {
   font-size: 12px;

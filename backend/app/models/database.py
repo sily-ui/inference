@@ -24,6 +24,11 @@ class Report(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
+    # 报告文件路径（相对于 UPLOAD_FOLDER）
+    markdown_file_path = db.Column(db.String(500), nullable=True)
+    pdf_file_path = db.Column(db.String(500), nullable=True)
+    word_file_path = db.Column(db.String(500), nullable=True)
+
     sections = db.relationship(
         "ReportSection", backref="report", lazy="dynamic", cascade="all, delete-orphan"
     )
@@ -43,6 +48,11 @@ class Report(db.Model):
             "error": self.error,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "files": {
+                "markdown": self.markdown_file_path,
+                "pdf": self.pdf_file_path,
+                "word": self.word_file_path,
+            },
         }
 
 

@@ -118,8 +118,8 @@ class PublicOpinionPredictionService:
         # 模块4: 可视化数据 - 纯计算（无需LLM）
         visualization = self._generate_visualization(timeline, scenarios, warnings)
 
-        # 模块5: 初始结论 - 模板化（无需LLM）
-        conclusion = self._generate_conclusion(scenarios, warnings)
+        # 模块5: 初始结论 - 使用LLM润色
+        conclusion = self._generate_conclusion(scenarios, warnings, event_summary)
 
         return {
             "simulation_id": simulation_id,
@@ -129,7 +129,6 @@ class PublicOpinionPredictionService:
             "time_range": time_range,
             "generated_at": datetime.now().isoformat(),
             "engine_mode": self.engine_mode,
-            # 5个功能模块
             "timeline": timeline,
             "scenarios": scenarios,
             "scenario_summary": scenario_summary,
@@ -247,31 +246,120 @@ class PublicOpinionPredictionService:
         # 算法模式或混合模式：使用贝叶斯网络
         if self.engine_mode in ['algorithm', 'hybrid']:
             try:
-                return self.algorithm_engine.generate_scenarios(
+                scenarios = self.algorithm_engine.generate_scenarios(
                     event_summary=event_summary,
                     current_sentiment=sentiment
                 )
+                # 使用LLM润色情景描述
+                return self._polish_scenario_descriptions(scenarios, event_summary)
             except Exception as e:
                 print(f"[AlgorithmEngine] 贝叶斯预测失败，回退到LLM: {e}")
 
-        prompt = f"""你是一个专业的舆情分析师。请预测这个舆情事件可能的发展方向和概率。
+        # LLM模式：直接生成并润色
+        return self._generate_llm_scenarios(event_summary, sentiment)
+
+    def _polish_scenario_descriptions(
+        self, scenarios: List[Dict[str, Any]], event_summary: str
+    ) -> List[Dict[str, Any]]:
+        """使用LLM润色情景描述"""
+        
+        # 准备情景信息
+        scenario_info = []
+        for s in scenarios:
+            scenario_info.append({
+                "name": s.get("name", ""),
+                "probability": s.get("probability", 0),
+                "risk_level": s.get("risk_level", "medium"),
+                "original_description": s.get("description", ""),
+                "key_factors": s.get("key_factors", [])
+            })
+
+        prompt = f"""你是一位资深的舆情分析专家。请为以下舆情预测情景润色描述，使其更加自然、专业、有洞察力。
+
+事件背景：{event_summary[:200]}
+
+原始情景数据：
+{json.dumps(scenario_info, ensure_ascii=False, indent=2)}
+
+润色要求：
+1. 每个情景的描述控制在60-80字
+2. 语言要自然流畅，避免生硬的数据堆砌
+3. 结合事件背景，给出有洞察力的分析
+4. 突出该情景的核心特征和可能的影响
+5. 保持客观专业的语气
+
+请以JSON格式返回润色后的描述：
+{{
+    "descriptions": [
+        {{
+            "name": "情景名称",
+            "polished_description": "润色后的自然描述...",
+            "insight": "核心洞察（20字以内）"
+        }}
+    ]
+}}
+
+只返回JSON，不要其他解释。"""
+
+        try:
+            response = self.llm_client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=1500,
+            )
+
+            content = response if isinstance(response, str) else response.get("content", "")
+            
+            # 解析JSON
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0]
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0]
+
+            result = json.loads(content.strip())
+            polished = result.get("descriptions", [])
+
+            # 更新情景描述
+            for i, scenario in enumerate(scenarios):
+                if i < len(polished):
+                    scenario["description"] = polished[i].get(
+                        "polished_description", scenario.get("description", "")
+                    )
+                    scenario["insight"] = polished[i].get("insight", "")
+
+            return scenarios
+
+        except Exception as e:
+            print(f"[LLM] 润色情景描述失败，使用原始描述: {e}")
+            return scenarios
+
+    def _generate_llm_scenarios(
+        self, event_summary: str, sentiment: str
+    ) -> List[Dict[str, Any]]:
+        """使用LLM直接生成润色后的情景"""
+
+        prompt = f"""你是一位资深的舆情分析师。请为以下舆情事件预测可能的发展情景，并生成自然、专业的描述。
 
 事件：{event_summary}
 当前情绪：{sentiment}
 
-请生成4-5个可能的发展场景，要求：
-1. 场景名称要简洁明了
-2. 概率总和约为100
-3. 包含风险等级和关键因素
+请生成4-5个发展情景，每个情景包含：
+1. 简洁明了的名称
+2. 自然流畅的描述（60-80字）
+3. 概率（总和约100）
+4. 风险等级（high/medium/low）
+5. 关键因素
+6. 时间线预测
 
 请以JSON格式返回：
 [{{
     "name": "场景名称",
-    "description": "详细描述",
+    "description": "自然流畅的描述文字...",
     "probability": 30,
+    "risk_level": "medium",
     "key_factors": ["因素1", "因素2"],
     "timeline": "时间线预测",
-    "risk_level": "high/medium/low"
+    "insight": "核心洞察"
 }}]
 """
 
@@ -297,42 +385,232 @@ class PublicOpinionPredictionService:
         except Exception as e:
             return self._generate_default_scenarios()
 
-    def _generate_default_scenarios(self) -> List[Dict[str, Any]]:
-        """生成默认情景"""
-        return [
-            {
-                "name": "平稳过渡",
-                "description": "热度逐渐下降，舆情平稳消退，公众注意力转移到其他事件",
-                "probability": 35,
-                "key_factors": ["新热点出现", "官方及时回应", "无新争议点"],
-                "timeline": "3-5天内热度明显下降",
-                "risk_level": "low",
+    def _generate_default_scenarios(
+        self, event_summary: str = "", sentiment: str = "中性"
+    ) -> List[Dict[str, Any]]:
+        """生成基于事件特征的动态默认情景"""
+
+        # 从事件摘要提取关键词特征
+        event_lower = event_summary.lower()
+
+        # 定义事件类型特征词
+        event_types = {
+            "product_issue": ["产品", "质量", "故障", "bug", "体验", "服务"],
+            "company_crisis": ["裁员", "倒闭", "破产", "财务", "业绩", "亏损"],
+            "public_safety": ["事故", "安全", "伤亡", "爆炸", "泄漏", "污染"],
+            "celebrity": ["明星", "艺人", "网红", "绯闻", "出轨", "离婚"],
+            "policy": ["政策", "法规", "规定", "禁令", "限制", "调整"],
+            "social": ["歧视", "公平", "性别", "种族", "阶层", "矛盾"],
+        }
+
+        # 检测事件类型
+        detected_type = "general"
+        type_scores = {}
+        for etype, keywords in event_types.items():
+            score = sum(1 for kw in keywords if kw in event_lower)
+            if score > 0:
+                type_scores[etype] = score
+        if type_scores:
+            detected_type = max(type_scores, key=type_scores.get)
+
+        # 基于事件类型和情绪调整概率分布
+        base_probs = self._get_scenario_probabilities(detected_type, sentiment)
+
+        # 生成情景描述
+        scenarios = self._build_scenarios_by_type(detected_type, base_probs, sentiment)
+
+        return scenarios
+
+    def _get_scenario_probabilities(self, event_type: str, sentiment: str) -> Dict[str, int]:
+        """根据事件类型和情绪获取情景概率分布"""
+
+        # 基础概率模板
+        templates = {
+            "product_issue": {
+                "平稳过渡": 40, "品牌修复": 25, "口碑恶化": 20, "竞品借势": 10, "行业反思": 5
             },
-            {
-                "name": "二次爆发",
-                "description": "出现新证据或意见领袖发声，引发第二轮讨论高潮",
-                "probability": 25,
-                "key_factors": ["新证据曝光", "KOL发声", "官方回应不当"],
-                "timeline": "第4-7天可能出现",
-                "risk_level": "high",
+            "company_crisis": {
+                "平稳过渡": 25, "危机深化": 30, "重组转型": 20, "行业震荡": 15, "监管介入": 10
             },
-            {
-                "name": "持续发酵",
-                "description": "保持在热搜榜单，舆情进入常态化讨论",
-                "probability": 20,
-                "key_factors": ["话题具有持续争议性", "多方持续发声"],
-                "timeline": "持续1-2周",
-                "risk_level": "medium",
+            "public_safety": {
+                "平稳过渡": 20, "调查深入": 35, "责任追究": 25, "制度完善": 15, "同类排查": 5
             },
-            {
-                "name": "官方介入",
-                "description": "监管机构或官方媒体正式回应，舆论走向可控",
-                "probability": 15,
-                "key_factors": ["官方声明", "政策出台", "舆论管控"],
-                "timeline": "1周内",
-                "risk_level": "low",
+            "celebrity": {
+                "平稳过渡": 35, "持续热议": 30, "反转洗白": 15, "事业受挫": 15, "同类曝光": 5
             },
-        ]
+            "policy": {
+                "平稳过渡": 45, "讨论深化": 25, "执行争议": 15, "调整优化": 10, "社会适应": 5
+            },
+            "social": {
+                "平稳过渡": 30, "持续讨论": 35, "群体对立": 20, "共识形成": 10, "政策响应": 5
+            },
+            "general": {
+                "平稳过渡": 40, "持续发酵": 25, "二次爆发": 15, "官方介入": 12, "连锁反应": 8
+            }
+        }
+
+        probs = templates.get(event_type, templates["general"]).copy()
+
+        # 根据情绪调整概率
+        sentiment_adjustments = {
+            "正面": {"平稳过渡": 10, "持续发酵": -5, "二次爆发": -5},
+            "负面": {"平稳过渡": -10, "持续发酵": 5, "二次爆发": 5},
+            "复杂": {"平稳过渡": -5, "持续发酵": 5}
+        }
+
+        adjustments = sentiment_adjustments.get(sentiment, {})
+        for key, adj in adjustments.items():
+            if key in probs:
+                probs[key] = max(5, min(60, probs[key] + adj))
+
+        # 归一化到100
+        total = sum(probs.values())
+        return {k: round(v * 100 / total) for k, v in probs.items()}
+
+    def _build_scenarios_by_type(
+        self, event_type: str, probabilities: Dict[str, int], sentiment: str
+    ) -> List[Dict[str, Any]]:
+        """根据事件类型构建情景详情"""
+
+        # 情景模板库
+        scenario_templates = {
+            "product_issue": {
+                "平稳过渡": {
+                    "description": "产品问题得到妥善解决，用户满意度逐步恢复，舆情自然消退",
+                    "key_factors": ["快速响应", "有效修复", "用户沟通", "补偿到位"],
+                    "risk_level": "low"
+                },
+                "品牌修复": {
+                    "description": "通过积极公关和产品改进，品牌形象逐步修复，用户信心回升",
+                    "key_factors": ["公关策略", "产品迭代", "用户运营", "口碑管理"],
+                    "risk_level": "medium"
+                },
+                "口碑恶化": {
+                    "description": "问题持续发酵，负面口碑扩散，用户流失加剧",
+                    "key_factors": ["处理不当", "竞品攻击", "媒体跟进", "用户愤怒"],
+                    "risk_level": "high"
+                },
+                "竞品借势": {
+                    "description": "竞争对手借机营销，抢占市场份额，形成行业格局变化",
+                    "key_factors": ["竞品动作", "市场反应", "用户迁移", "行业关注"],
+                    "risk_level": "medium"
+                },
+                "行业反思": {
+                    "description": "事件引发行业对产品标准和服务规范的反思和改进",
+                    "key_factors": ["行业关注", "标准讨论", "监管关注", "标杆效应"],
+                    "risk_level": "low"
+                }
+            },
+            "company_crisis": {
+                "平稳过渡": {
+                    "description": "公司通过有效措施稳定局面，逐步恢复正常运营",
+                    "key_factors": ["资金注入", "战略调整", "员工安抚", "市场信心"],
+                    "risk_level": "low"
+                },
+                "危机深化": {
+                    "description": "危机持续恶化，业务收缩，人才流失，市场地位下降",
+                    "key_factors": ["资金链断裂", "核心人员离职", "客户流失", "信用危机"],
+                    "risk_level": "high"
+                },
+                "重组转型": {
+                    "description": "通过重组、并购或业务转型，公司获得新生",
+                    "key_factors": ["战略重组", "业务调整", "新团队", "市场机会"],
+                    "risk_level": "medium"
+                },
+                "行业震荡": {
+                    "description": "公司危机引发行业连锁反应，影响上下游企业和市场信心",
+                    "key_factors": ["供应链影响", "行业信心", "投资者担忧", "监管关注"],
+                    "risk_level": "high"
+                },
+                "监管介入": {
+                    "description": "监管部门介入调查，推动行业规范和制度完善",
+                    "key_factors": ["监管调查", "合规要求", "行业整顿", "制度完善"],
+                    "risk_level": "medium"
+                }
+            },
+            "public_safety": {
+                "平稳过渡": {
+                    "description": "事故得到妥善处理，安全措施落实，公众担忧逐步消除",
+                    "key_factors": ["事故控制", "救援到位", "信息公开", "善后处理"],
+                    "risk_level": "low"
+                },
+                "调查深入": {
+                    "description": "调查持续深入，更多细节曝光，责任追究逐步明确",
+                    "key_factors": ["调查进展", "证据收集", "责任认定", "舆论关注"],
+                    "risk_level": "medium"
+                },
+                "责任追究": {
+                    "description": "相关责任人被追责，企业面临处罚和赔偿",
+                    "key_factors": ["责任认定", "法律程序", "行政处罚", "民事赔偿"],
+                    "risk_level": "high"
+                },
+                "制度完善": {
+                    "description": "事件推动相关安全制度和监管机制的完善",
+                    "key_factors": ["制度反思", "标准提升", "监管加强", "行业自律"],
+                    "risk_level": "low"
+                },
+                "同类排查": {
+                    "description": "引发同类场所或行业的全面安全排查和整改",
+                    "key_factors": ["全面排查", "隐患整改", "行业整顿", "预防机制"],
+                    "risk_level": "medium"
+                }
+            },
+            "general": {
+                "平稳过渡": {
+                    "description": "热度逐渐下降，舆情平稳消退，公众注意力转移到其他事件",
+                    "key_factors": ["新热点出现", "及时回应", "无新争议", "自然衰减"],
+                    "risk_level": "low"
+                },
+                "持续发酵": {
+                    "description": "话题保持热度，讨论持续进行，关注度维持在较高水平",
+                    "key_factors": ["话题价值", "多方参与", "持续爆料", "媒体跟进"],
+                    "risk_level": "medium"
+                },
+                "二次爆发": {
+                    "description": "出现新证据或关键人物发声，引发新一轮讨论高潮",
+                    "key_factors": ["新证据", "关键发声", "剧情反转", "情绪激化"],
+                    "risk_level": "high"
+                },
+                "官方介入": {
+                    "description": "官方机构或权威媒体介入，推动事件解决或澄清",
+                    "key_factors": ["官方关注", "权威发声", "政策信号", "舆论引导"],
+                    "risk_level": "medium"
+                },
+                "连锁反应": {
+                    "description": "事件引发相关领域或类似事件的连锁反应和讨论",
+                    "key_factors": ["关联事件", "行业影响", "模式讨论", "深层反思"],
+                    "risk_level": "medium"
+                }
+            }
+        }
+
+        templates = scenario_templates.get(event_type, scenario_templates["general"])
+
+        scenarios = []
+        for name, prob in probabilities.items():
+            template = templates.get(name, templates.get("平稳过渡"))
+            scenarios.append({
+                "name": name,
+                "description": template["description"],
+                "probability": prob,
+                "key_factors": template["key_factors"],
+                "timeline": self._generate_timeline_by_risk(template["risk_level"]),
+                "risk_level": template["risk_level"]
+            })
+
+        # 按概率排序
+        scenarios.sort(key=lambda x: x["probability"], reverse=True)
+        return scenarios
+
+    def _generate_timeline_by_risk(self, risk_level: str) -> str:
+        """根据风险等级生成时间线描述"""
+        timelines = {
+            "low": ["3-5天内热度消退", "1周内基本平息", "短期影响有限"],
+            "medium": ["持续1-2周", "7-10天热度维持", "中期影响需关注"],
+            "high": ["持续2-4周", "14-21天发酵期", "长期影响深远"]
+        }
+        import random
+        return random.choice(timelines.get(risk_level, timelines["medium"]))
 
     def _generate_scenario_summary(
         self, scenarios: List[Dict[str, Any]], event_summary: str
@@ -460,17 +738,12 @@ class PublicOpinionPredictionService:
             ],
         }
 
-    def _generate_conclusion(self, scenarios: List[Dict], warnings: List[Dict]) -> str:
-        """生成预测结论"""
+    def _generate_conclusion(self, scenarios: List[Dict], warnings: List[Dict], event_summary: str = "") -> str:
+        """生成预测结论 - 使用LLM润色"""
 
-        # 找出最高概率情景
-        top = max(scenarios, key=lambda x: x.get("probability", 0))
-        top_name = top.get("name", "")
-        top_prob = top.get("probability", 0)
-        top_desc = top.get("description", "")
-
-        # 找出第二高概率情景
+        # 准备情景数据
         sorted_scenarios = sorted(scenarios, key=lambda x: x.get("probability", 0), reverse=True)
+        top = sorted_scenarios[0] if sorted_scenarios else {}
         second = sorted_scenarios[1] if len(sorted_scenarios) > 1 else None
 
         # 统计风险
@@ -479,67 +752,71 @@ class PublicOpinionPredictionService:
             r = s.get("risk_level", "medium")
             risk_count[r] = risk_count.get(r, 0) + 1
 
-        high_risk_count = risk_count.get("high", 0)
-        medium_risk_count = risk_count.get("medium", 0)
+        # 准备预警信息
+        warning_days = [w.get('day', 0) for w in warnings if w.get('day', 0) > 0]
 
-        # 根据概率区间选择不同的表达方式
-        if top_prob >= 50:
-            confidence = "极大概率"
-        elif top_prob >= 35:
-            confidence = "较大概率"
-        elif top_prob >= 25:
-            confidence = "可能"
+        # 构建提示词
+        prompt = f"""你是一位资深的舆情分析专家。请根据以下预测数据，撰写一段自然、专业、有洞察力的预测结论（100-150字）。
+
+事件背景：{event_summary[:200] if event_summary else "某舆情事件"}
+
+情景概率分布：
+{json.dumps([{
+    'name': s.get('name', ''),
+    'probability': s.get('probability', 0),
+    'risk_level': s.get('risk_level', 'medium'),
+    'description': s.get('description', '')[:80]
+} for s in sorted_scenarios[:3]], ensure_ascii=False, indent=2)}
+
+主要风险情景数量：高风险{risk_count.get('high', 0)}个，中风险{risk_count.get('medium', 0)}个，低风险{risk_count.get('low', 0)}个
+
+关键预警节点：{warning_days if warning_days else '暂无'}
+
+撰写要求：
+1. 语言自然流畅，避免生硬的数据堆砌
+2. 突出最可能的情景及其概率
+3. 提及风险分布和需要关注的要点
+4. 给出简洁的行动建议
+5. 控制在100-150字以内
+
+请直接输出结论文字，不要有任何格式标记。"""
+
+        try:
+            response = self.llm_client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=300,
+            )
+            content = response if isinstance(response, str) else response.get("content", "")
+            conclusion = content.strip()
+            if conclusion:
+                return conclusion
+        except Exception as e:
+            print(f"[LLM] 生成结论失败，使用模板生成: {e}")
+
+        # LLM失败时的降级方案
+        return self._generate_fallback_conclusion(scenarios, warnings)
+
+    def _generate_fallback_conclusion(self, scenarios: List[Dict], warnings: List[Dict]) -> str:
+        """生成结论的降级方案"""
+        sorted_scenarios = sorted(scenarios, key=lambda x: x.get("probability", 0), reverse=True)
+        top = sorted_scenarios[0] if sorted_scenarios else {}
+
+        risk_count = {"high": 0, "medium": 0, "low": 0}
+        for s in scenarios:
+            r = s.get("risk_level", "medium")
+            risk_count[r] = risk_count.get(r, 0) + 1
+
+        high_risk = risk_count.get("high", 0)
+
+        conclusion = f"基于预测分析，「{top.get('name', '未知')}」是最可能出现的情景，概率为{top.get('probability', 0)}%。"
+
+        if high_risk >= 2:
+            conclusion += "当前存在多个高风险情景，建议密切关注舆情动态，提前制定应对预案。"
+        elif high_risk == 1:
+            conclusion += "存在一定风险因素，建议持续关注发展趋势，适时采取引导措施。"
         else:
-            confidence = "有一定可能"
-
-        # 根据风险等级构建描述
-        if high_risk_count >= 2:
-            risk_desc = "整体风险偏高，需高度警惕"
-        elif high_risk_count == 1:
-            risk_desc = "存在一定风险，建议密切关注"
-        elif medium_risk_count > 0:
-            risk_desc = "风险可控，但仍需防范"
-        else:
-            risk_desc = "整体风险较低，态势平稳"
-
-        # 构建情景描述
-        scenario_templates = {
-            "平稳过渡": f"舆情将逐渐降温，公众注意力转移，{top_desc[:30] if top_desc else '事件影响逐步消退'}",
-            "二次爆发": f"需警惕舆情反弹，{top_desc[:30] if top_desc else '可能出现新一轮讨论高潮'}",
-            "持续发酵": f"话题将持续引发关注，{top_desc[:30] if top_desc else '进入常态化讨论阶段'}",
-            "官方介入": f"官方回应将成为关键，{top_desc[:30] if top_desc else '监管态度影响舆情走向'}",
-            "温和争议": f"争议将保持温和态势，{top_desc[:30] if top_desc else '不会出现剧烈波动'}",
-            "制度调整": f"可能引发制度层面反思，{top_desc[:30] if top_desc else '推动相关政策完善'}",
-        }
-
-        # 找到匹配的情景描述
-        scenario_desc = None
-        for key, desc in scenario_templates.items():
-            if key in top_name:
-                scenario_desc = desc
-                break
-
-        if not scenario_desc:
-            scenario_desc = top_desc[:50] if top_desc else f"预计出现'{top_name}'的发展态势"
-
-        # 构建预警提示
-        if len(warnings) == 0:
-            warning_text = "暂无重大风险预警"
-        elif len(warnings) == 1:
-            warning_text = f"需关注{warnings[0].get('day', 0)}天后的关键节点"
-        else:
-            days = [w.get('day', 0) for w in warnings if w.get('day', 0) > 0]
-            if days:
-                warning_text = f"需重点关注第{min(days)}天和第{max(days)}天等关键节点"
-            else:
-                warning_text = f"需关注{len(warnings)}个关键风险节点"
-
-        # 组合结论
-        conclusion = f"{confidence}出现「{top_name}」的情景（{top_prob}%）。{scenario_desc}。{risk_desc}，{warning_text}。"
-
-        # 如果有次高概率情景且概率接近，添加补充说明
-        if second and second.get("probability", 0) > top_prob - 15 and second.get("probability", 0) >= 20:
-            conclusion += f"同时需防范「{second.get('name')}」的可能性（{second.get('probability')}%）。"
+            conclusion += "整体风险可控，建议保持监测，及时掌握舆论走向。"
 
         return conclusion
 
@@ -624,31 +901,174 @@ class PublicOpinionPredictionService:
             回答内容
         """
 
-        context = f"""你是一个舆情预测专家。请基于以下预测数据回答用户的问题。
+        # 构建详细的预测上下文
+        scenarios = prediction_data.get("scenarios", [])
+        warnings = prediction_data.get("warnings", [])
+        timeline = prediction_data.get("timeline", [])
 
-预测摘要：
-- 事件：{prediction_data.get("event_summary", "")}
-- 预测天数：{prediction_data.get("time_range", 7)}天
-- 结论：{prediction_data.get("conclusion", "")}
+        # 格式化情景信息
+        scenario_text = ""
+        for i, s in enumerate(scenarios[:3], 1):
+            scenario_text += f"\n{i}. {s.get('name', '')} (概率{s.get('probability', 0)}%, 风险等级:{s.get('risk_level', 'medium')})"
+            scenario_text += f"\n   描述：{s.get('description', '')[:100]}"
+            scenario_text += f"\n   关键因素：{', '.join(s.get('key_factors', [])[:2])}"
 
-用户问题：{question}
+        # 格式化预警信息
+        warning_text = ""
+        if warnings:
+            for w in warnings[:3]:
+                warning_text += f"\n- 第{w.get('day', 0)}天: {w.get('description', '')} (等级:{w.get('level', 'medium')})"
+        else:
+            warning_text = "\n暂无重大风险预警"
 
-请用简洁专业的语言回答。如果用户问的是预测相关的问题，给出你的专业建议。
-"""
+        # 格式化时间线关键节点
+        timeline_highlights = ""
+        if timeline:
+            high_heat_days = [t for t in timeline if t.get('heat', 0) > 70][:3]
+            for t in high_heat_days:
+                timeline_highlights += f"\n- 第{t.get('day', 0)}天: 热度{t.get('heat', 0)}, {t.get('event', '')}"
+
+        context = f"""你是MiroFish舆情预测系统的AI助手，一位资深的舆情分析专家。请基于以下详细的预测数据，为用户提供专业、实用、可操作的建议。
+
+【事件背景】
+{prediction_data.get("event_summary", "")}
+
+【预测结论】
+{prediction_data.get("conclusion", "")}
+
+【情景分析】（按概率排序）
+{scenario_text}
+
+【关键预警】
+{warning_text}
+
+【热度高峰节点】
+{timeline_highlights if timeline_highlights else '热度分布较为平稳'}
+
+【用户问题】
+{question}
+
+【回答要求】
+1. 回答要基于上述预测数据，给出具体、有针对性的建议
+2. 如果涉及应对措施，请分点列出可执行的步骤
+3. 如果涉及风险评估，说明概率和可能的影响
+4. 语言专业但易懂，避免空洞的套话
+5. 控制在200字以内，重点突出
+
+请直接给出回答："""
 
         try:
             response = self.llm_client.chat(
                 messages=[{"role": "user", "content": context}],
                 temperature=0.7,
-                max_tokens=500,
+                max_tokens=600,
             )
 
-            return (
-                response if isinstance(response, str) else response.get("content", "")
-            )
+            answer = response if isinstance(response, str) else response.get("content", "")
+            return answer.strip() if answer else "抱歉，我暂时无法回答这个问题。"
 
         except Exception as e:
-            return "抱歉，我现在无法回答这个问题。请稍后再试。"
+            return f"抱歉，处理您的问题时出现了错误。基于当前数据，建议您关注最可能的情景：{scenarios[0].get('name', '') if scenarios else '舆情发展'}。"
+
+    def generate_recommended_questions(
+        self,
+        event_summary: str,
+        scenarios: List[Dict[str, Any]],
+        sentiment_distribution: List[Dict[str, Any]],
+    ) -> List[str]:
+        """
+        基于预测情景生成推荐问题
+
+        Args:
+            event_summary: 事件摘要
+            scenarios: 预测情景列表
+            sentiment_distribution: 情绪分布
+
+        Returns:
+            推荐问题列表（3个）
+        """
+        # 提取情景信息
+        scenario_info = []
+        for i, s in enumerate(scenarios[:3]):
+            scenario_info.append(
+                f"{i+1}. {s.get('name', '')} (概率{s.get('probability', 0)}%, 风险{s.get('risk_level', 'medium')})"
+            )
+
+        # 提取情绪信息
+        sentiment_info = []
+        for s in sentiment_distribution:
+            sentiment_info.append(f"{s.get('label', '')}: {s.get('percentage', 0)}%")
+
+        prompt = f"""你是一个舆情分析专家。基于以下舆情预测数据，生成3个最有价值的推荐问题，帮助用户深入理解当前舆情态势。
+
+事件摘要：{event_summary}
+
+预测情景（按概率排序）：
+{' '.join(scenario_info)}
+
+情绪分布：
+{' '.join(sentiment_info)}
+
+请生成3个推荐问题，要求：
+1. 问题要具体、有针对性，结合上述情景和情绪数据
+2. 问题应该能帮助用户做出决策或采取行动
+3. 问题类型可以包括：预防措施、应对策略、重点关注、风险评估等
+4. 每个问题控制在30字以内
+5. 返回JSON格式：{{"questions": ["问题1", "问题2", "问题3"]}}
+
+请直接返回JSON，不要包含其他解释。"""
+
+        try:
+            response = self.llm_client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=300,
+            )
+
+            content = response if isinstance(response, str) else response.get("content", "")
+
+            # 尝试解析JSON
+            import re
+            json_match = re.search(r'\{[^}]*"questions"[^}]*\}', content, re.DOTALL)
+            if json_match:
+                result = json.loads(json_match.group())
+                questions = result.get("questions", [])
+                if len(questions) >= 3:
+                    return questions[:3]
+
+            # 如果解析失败，使用备用方案
+            return self._generate_default_questions(scenarios, sentiment_distribution)
+
+        except Exception as e:
+            return self._generate_default_questions(scenarios, sentiment_distribution)
+
+    def _generate_default_questions(
+        self, scenarios: List[Dict[str, Any]], sentiment_distribution: List[Dict[str, Any]]
+    ) -> List[str]:
+        """生成默认推荐问题"""
+        questions = []
+
+        if scenarios:
+            top_scenario = scenarios[0]
+            questions.append(
+                f"针对\"{top_scenario.get('name', '最可能情景')}\"这一最可能发生的情景，应该采取哪些预防措施？"
+            )
+
+        high_risk = next((s for s in scenarios if s.get("risk_level") == "high"), None)
+        if high_risk:
+            questions.append(
+                f"如果\"{high_risk.get('name', '高风险情景')}\"发生，最佳的应对策略是什么？"
+            )
+
+        negative = next((s for s in sentiment_distribution if s.get("type") == "negative"), None)
+        if negative and negative.get("percentage", 0) > 30:
+            questions.append(
+                f"当前负面情绪占比{negative.get('percentage')}%如何有效引导舆论走向中性或正面？"
+            )
+        else:
+            questions.append("基于当前舆情态势，未来需要重点关注哪些方面？")
+
+        return questions[:3]
 
     # 以下为保留的原有方法
     def predict(

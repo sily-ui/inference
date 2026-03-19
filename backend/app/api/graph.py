@@ -245,6 +245,107 @@ def generate_ontology():
         ), 500
 
 
+# ============== 接口1.5：直接文本生成本体 ==============
+
+
+@graph_bp.route("/ontology/generate-from-text", methods=["POST"])
+def generate_ontology_from_text():
+    """
+    接口1.5：直接使用文本生成本体定义（用于Tavily搜索结果）
+
+    请求方式：application/json
+
+    参数：
+        text: 文本内容（必填）
+        simulation_requirement: 模拟需求描述（必填）
+        project_name: 项目名称（可选）
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "project_id": "proj_xxxx",
+                "ontology": {
+                    "entity_types": [...],
+                    "edge_types": [...],
+                    "analysis_summary": "..."
+                },
+                "total_text_length": 12345
+            }
+        }
+    """
+    try:
+        logger.info("=== 开始从文本生成本体定义 ===")
+
+        data = request.get_json() or {}
+        text = data.get("text", "")
+        simulation_requirement = data.get("simulation_requirement", "")
+        project_name = data.get("project_name", "Tavily Search Project")
+
+        logger.debug(f"项目名称: {project_name}")
+        logger.debug(f"模拟需求: {simulation_requirement[:100]}...")
+        logger.debug(f"文本长度: {len(text)}")
+
+        if not simulation_requirement:
+            return jsonify(
+                {"success": False, "error": "请提供模拟需求描述 (simulation_requirement)"}
+            ), 400
+
+        if not text or len(text.strip()) < 100:
+            return jsonify(
+                {"success": False, "error": "请提供足够的文本内容（至少100字符）"}
+            ), 400
+
+        project = ProjectManager.create_project(name=project_name)
+        project.simulation_requirement = simulation_requirement
+        project.files = [{"filename": "tavily_search_result.txt", "size": len(text)}]
+        logger.info(f"创建项目: {project.project_id}")
+
+        preprocessed_text = TextProcessor.preprocess_text(text)
+        project.total_text_length = len(preprocessed_text)
+        ProjectManager.save_extracted_text(project.project_id, preprocessed_text)
+        logger.info(f"文本保存完成，共 {len(preprocessed_text)} 字符")
+
+        logger.info("调用 LLM 生成本体定义...")
+        generator = OntologyGenerator()
+        ontology = generator.generate(
+            document_texts=[preprocessed_text],
+            simulation_requirement=simulation_requirement,
+        )
+
+        entity_count = len(ontology.get("entity_types", []))
+        edge_count = len(ontology.get("edge_types", []))
+        logger.info(f"本体生成完成: {entity_count} 个实体类型, {edge_count} 个关系类型")
+
+        project.ontology = {
+            "entity_types": ontology.get("entity_types", []),
+            "edge_types": ontology.get("edge_types", []),
+        }
+        project.analysis_summary = ontology.get("analysis_summary", "")
+        project.status = ProjectStatus.ONTOLOGY_GENERATED
+        ProjectManager.save_project(project)
+        logger.info(f"=== 本体生成完成 === 项目ID: {project.project_id}")
+
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "project_id": project.project_id,
+                    "project_name": project.name,
+                    "ontology": project.ontology,
+                    "analysis_summary": project.analysis_summary,
+                    "files": project.files,
+                    "total_text_length": project.total_text_length,
+                },
+            }
+        )
+
+    except Exception as e:
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
 # ============== 接口2：构建图谱 ==============
 
 

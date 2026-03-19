@@ -1,6 +1,6 @@
 """
 OASIS模拟管理器
-管理Twitter和Reddit双平台并行模拟
+管理国内舆情平台模拟
 使用预设脚本 + LLM智能生成配置参数
 """
 
@@ -35,8 +35,7 @@ class SimulationStatus(str, Enum):
 
 class PlatformType(str, Enum):
     """平台类型"""
-    TWITTER = "twitter"
-    REDDIT = "reddit"
+    DOMESTIC = "domestic"
 
 
 @dataclass
@@ -45,10 +44,6 @@ class SimulationState:
     simulation_id: str
     project_id: str
     graph_id: str
-    
-    # 平台启用状态
-    enable_twitter: bool = True
-    enable_reddit: bool = True
     
     # 状态
     status: SimulationStatus = SimulationStatus.CREATED
@@ -64,8 +59,7 @@ class SimulationState:
     
     # 运行时数据
     current_round: int = 0
-    twitter_status: str = "not_started"
-    reddit_status: str = "not_started"
+    platform_status: str = "not_started"
     
     # 时间戳
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -80,8 +74,6 @@ class SimulationState:
             "simulation_id": self.simulation_id,
             "project_id": self.project_id,
             "graph_id": self.graph_id,
-            "enable_twitter": self.enable_twitter,
-            "enable_reddit": self.enable_reddit,
             "status": self.status.value,
             "entities_count": self.entities_count,
             "profiles_count": self.profiles_count,
@@ -89,8 +81,7 @@ class SimulationState:
             "config_generated": self.config_generated,
             "config_reasoning": self.config_reasoning,
             "current_round": self.current_round,
-            "twitter_status": self.twitter_status,
-            "reddit_status": self.reddit_status,
+            "platform_status": self.platform_status,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "error": self.error,
@@ -171,8 +162,6 @@ class SimulationManager:
             simulation_id=simulation_id,
             project_id=data.get("project_id", ""),
             graph_id=data.get("graph_id", ""),
-            enable_twitter=data.get("enable_twitter", True),
-            enable_reddit=data.get("enable_reddit", True),
             status=SimulationStatus(data.get("status", "created")),
             entities_count=data.get("entities_count", 0),
             profiles_count=data.get("profiles_count", 0),
@@ -180,8 +169,7 @@ class SimulationManager:
             config_generated=data.get("config_generated", False),
             config_reasoning=data.get("config_reasoning", ""),
             current_round=data.get("current_round", 0),
-            twitter_status=data.get("twitter_status", "not_started"),
-            reddit_status=data.get("reddit_status", "not_started"),
+            platform_status=data.get("platform_status", "not_started"),
             created_at=data.get("created_at", datetime.now().isoformat()),
             updated_at=data.get("updated_at", datetime.now().isoformat()),
             error=data.get("error"),
@@ -194,36 +182,30 @@ class SimulationManager:
         self,
         project_id: str,
         graph_id: str,
-        enable_twitter: bool = True,
-        enable_reddit: bool = True,
     ) -> SimulationState:
         """
         创建新的模拟
-        
+
         Args:
             project_id: 项目ID
             graph_id: Zep图谱ID
-            enable_twitter: 是否启用Twitter模拟
-            enable_reddit: 是否启用Reddit模拟
-            
+
         Returns:
             SimulationState
         """
         import uuid
         simulation_id = f"sim_{uuid.uuid4().hex[:12]}"
-        
+
         state = SimulationState(
             simulation_id=simulation_id,
             project_id=project_id,
             graph_id=graph_id,
-            enable_twitter=enable_twitter,
-            enable_reddit=enable_reddit,
             status=SimulationStatus.CREATED,
         )
-        
+
         self._save_simulation_state(state)
         logger.info(f"创建模拟: {simulation_id}, project={project_id}, graph={graph_id}")
-        
+
         return state
     
     def prepare_simulation(
@@ -325,56 +307,40 @@ class SimulationManager:
                         item_name=msg
                     )
             
-            # 设置实时保存的文件路径（优先使用 Reddit JSON 格式）
-            realtime_output_path = None
+            # 设置实时保存的文件路径（国内舆情平台使用 Reddit JSON 格式）
+            realtime_output_path = os.path.join(sim_dir, "reddit_profiles.json")
             realtime_platform = "reddit"
-            if state.enable_reddit:
-                realtime_output_path = os.path.join(sim_dir, "reddit_profiles.json")
-                realtime_platform = "reddit"
-            elif state.enable_twitter:
-                realtime_output_path = os.path.join(sim_dir, "twitter_profiles.csv")
-                realtime_platform = "twitter"
-            
+
             profiles = generator.generate_profiles_from_entities(
                 entities=filtered.entities,
                 use_llm=use_llm_for_profiles,
                 progress_callback=profile_progress,
-                graph_id=state.graph_id,  # 传入graph_id用于Zep检索
-                parallel_count=parallel_profile_count,  # 并行生成数量
-                realtime_output_path=realtime_output_path,  # 实时保存路径
-                output_platform=realtime_platform  # 输出格式
+                graph_id=state.graph_id,
+                parallel_count=parallel_profile_count,
+                realtime_output_path=realtime_output_path,
+                output_platform=realtime_platform
             )
-            
+
             state.profiles_count = len(profiles)
-            
-            # 保存Profile文件（注意：Twitter使用CSV格式，Reddit使用JSON格式）
-            # Reddit 已经在生成过程中实时保存了，这里再保存一次确保完整性
+
+            # 保存Profile文件
             if progress_callback:
                 progress_callback(
-                    "generating_profiles", 95, 
+                    "generating_profiles", 95,
                     "保存Profile文件...",
                     current=total_entities,
                     total=total_entities
                 )
-            
-            if state.enable_reddit:
-                generator.save_profiles(
-                    profiles=profiles,
-                    file_path=os.path.join(sim_dir, "reddit_profiles.json"),
-                    platform="reddit"
-                )
-            
-            if state.enable_twitter:
-                # Twitter使用CSV格式！这是OASIS的要求
-                generator.save_profiles(
-                    profiles=profiles,
-                    file_path=os.path.join(sim_dir, "twitter_profiles.csv"),
-                    platform="twitter"
-                )
-            
+
+            generator.save_profiles(
+                profiles=profiles,
+                file_path=os.path.join(sim_dir, "reddit_profiles.json"),
+                platform="reddit"
+            )
+
             if progress_callback:
                 progress_callback(
-                    "generating_profiles", 100, 
+                    "generating_profiles", 100,
                     f"完成，共 {len(profiles)} 个Profile",
                     current=len(profiles),
                     total=len(profiles)
@@ -406,8 +372,6 @@ class SimulationManager:
                 simulation_requirement=simulation_requirement,
                 document_text=document_text,
                 entities=filtered.entities,
-                enable_twitter=state.enable_twitter,
-                enable_reddit=state.enable_reddit
             )
             
             if progress_callback:
@@ -514,15 +478,11 @@ class SimulationManager:
             "scripts_dir": scripts_dir,
             "config_file": config_path,
             "commands": {
-                "twitter": f"python {scripts_dir}/run_twitter_simulation.py --config {config_path}",
-                "reddit": f"python {scripts_dir}/run_reddit_simulation.py --config {config_path}",
-                "parallel": f"python {scripts_dir}/run_parallel_simulation.py --config {config_path}",
+                "domestic": f"python {scripts_dir}/run_simulation.py --config {config_path}",
             },
             "instructions": (
                 f"1. 激活conda环境: conda activate MiroFish\n"
                 f"2. 运行模拟 (脚本位于 {scripts_dir}):\n"
-                f"   - 单独运行Twitter: python {scripts_dir}/run_twitter_simulation.py --config {config_path}\n"
-                f"   - 单独运行Reddit: python {scripts_dir}/run_reddit_simulation.py --config {config_path}\n"
-                f"   - 并行运行双平台: python {scripts_dir}/run_parallel_simulation.py --config {config_path}"
+                f"   - 运行国内舆情平台模拟: python {scripts_dir}/run_simulation.py --config {config_path}"
             )
         }

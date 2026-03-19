@@ -1,31 +1,19 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
     <header class="app-header">
       <div class="header-left">
         <div class="brand" @click="router.push('/')">MIROFISH</div>
       </div>
       
       <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
-            :key="mode"
-            class="switch-btn"
-            :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
-          >
-            {{ { graph: '图谱', split: '双栏', workbench: '工作台' }[mode] }}
-          </button>
-        </div>
+        <StepProgressBar 
+          :steps="['本体生成', '图谱构建', '模拟', '报告', '舆情预测']" 
+          :currentStep="3"
+          @step-click="handleProgressBarClick"
+        />
       </div>
 
       <div class="header-right">
-        <div class="workflow-step">
-          <span class="step-num">Step 4/5</span>
-          <span class="step-name">报告生成</span>
-        </div>
-        <div class="step-divider"></div>
         <span class="status-indicator" :class="statusClass">
           <span class="dot"></span>
           {{ statusText }}
@@ -33,9 +21,7 @@
       </div>
     </header>
 
-    <!-- Main Content Area -->
     <main class="content-area">
-      <!-- Left Panel: Graph -->
       <div class="panel-wrapper left" :style="leftPanelStyle">
         <GraphPanel 
           :graphData="graphData"
@@ -47,7 +33,6 @@
         />
       </div>
 
-      <!-- Right Panel: Step4 报告生成 -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step4Report
           :reportId="currentReportId"
@@ -65,6 +50,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import GraphPanel from '../components/GraphPanel.vue'
+import StepProgressBar from '../components/StepProgressBar.vue'
 import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation } from '../api/simulation'
@@ -73,7 +59,6 @@ import { getReport } from '../api/report'
 const route = useRoute()
 const router = useRouter()
 
-// Props
 const props = defineProps({
   reportId: String
 })
@@ -125,6 +110,35 @@ const addLog = (msg) => {
 
 const updateStatus = (status) => {
   currentStatus.value = status
+}
+
+// 处理进度条点击 - 跳转到对应视图
+const handleProgressBarClick = (stepIdx) => {
+  const targetStep = stepIdx + 1
+  
+  if (targetStep === 1 || targetStep === 2) {
+    if (projectData.value?.project_id) {
+      router.push({ name: 'Process', params: { projectId: projectData.value.project_id } })
+    } else {
+      router.push('/')
+    }
+  } else if (targetStep === 3) {
+    // 优先使用 simulationId，否则使用 projectData 中的 simulation_id
+    const simId = simulationId.value || projectData.value?.simulation_id
+    if (simId) {
+      router.push({ name: 'Simulation', params: { simulationId: simId } })
+    } else if (projectData.value?.project_id) {
+      // 如果有 project_id 但没有 simulation_id，跳转到 Process 页面
+      router.push({ name: 'Process', params: { projectId: projectData.value.project_id } })
+    } else {
+      addLog('错误: 无法获取模拟信息')
+      router.push('/')
+    }
+  } else if (targetStep === 4) {
+    // 已经在 Report 页面
+  } else if (targetStep === 5 && currentReportId.value) {
+    router.push({ name: 'Prediction', params: { reportId: currentReportId.value } })
+  }
 }
 
 // --- Layout Methods ---
