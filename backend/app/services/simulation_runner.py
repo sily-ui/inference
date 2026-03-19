@@ -770,7 +770,7 @@ class SimulationRunner:
                         action = AgentAction(
                             round_num=round_counter,
                             timestamp=datetime.now().isoformat(),
-                            platform="twitter",
+                            platform="reddit",
                             agent_id=agent_id,
                             agent_name=agent_name,
                             action_type=action_type.upper(),

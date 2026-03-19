@@ -323,7 +323,7 @@ class SimulationManager:
 
             state.profiles_count = len(profiles)
 
-            # 保存Profile文件
+            # 保存Profile文件（同时保存两个平台格式）
             if progress_callback:
                 progress_callback(
                     "generating_profiles", 95,
@@ -332,10 +332,18 @@ class SimulationManager:
                     total=total_entities
                 )
 
+            # 保存 Reddit 格式
             generator.save_profiles(
                 profiles=profiles,
                 file_path=os.path.join(sim_dir, "reddit_profiles.json"),
                 platform="reddit"
+            )
+            
+            # 保存 Twitter 格式
+            generator.save_profiles(
+                profiles=profiles,
+                file_path=os.path.join(sim_dir, "twitter_profiles.csv"),
+                platform="twitter"
             )
 
             if progress_callback:

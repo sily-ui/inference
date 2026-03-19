@@ -98,7 +98,12 @@ class LLMClient:
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
 
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+            timeout=120.0,  # 设置120秒超时
+            max_retries=2,  # 最多重试2次
+        )
 
     def _make_cache_key(
         self, messages: List[Dict], temperature: float, max_tokens: int

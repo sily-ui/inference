@@ -82,7 +82,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { startSimulation, stopSimulation, getRunStatus, getRunStatusDetail } from '../api/simulation'
+import { startSimulation, stopSimulation, getRunStatus, getRunStatusDetail, getSimulationConfig } from '../api/simulation'
 import { generateReport } from '../api/report'
 
 const props = defineProps({
@@ -220,9 +220,15 @@ const doStartSimulation = async () => {
   
   try {
     // 先检查模拟是否已经在运行中
-    const statusRes = await getRunStatus(props.simulationId)
+    let statusRes = null
+    try {
+      statusRes = await getRunStatus(props.simulationId)
+    } catch (statusErr) {
+      // 获取运行状态失败，继续检查配置
+      addLog(`  └─ 获取运行状态失败: ${statusErr.message}`)
+    }
     
-    if (statusRes.success && statusRes.data) {
+    if (statusRes?.success && statusRes?.data) {
       const runnerStatus = statusRes.data.runner_status
       
       // 如果模拟已经在运行中，直接开始轮询
@@ -235,15 +241,45 @@ const doStartSimulation = async () => {
         return
       }
       
-      // 如果模拟已完成，显示完成状态
-      if (runnerStatus === 'completed' || runnerStatus === 'stopped') {
-        addLog('✓ 模拟已完成')
+      // 如果模拟已完成（有进度才算真正完成）
+      if ((runnerStatus === 'completed' || runnerStatus === 'stopped') && statusRes.data.current_round > 0) {
+        addLog('✓ 模拟已完成，加载历史动作...')
         runStatus.value = statusRes.data
         phase.value = 2
         emit('update-status', 'completed')
+        // 加载已完成的动作数据
+        await loadCompletedActions()
         return
       }
+      
+      // 如果是异常终止（stopped 但没有进度），显示警告并尝试重新启动
+      if (runnerStatus === 'stopped' && statusRes.data.current_round === 0) {
+        const errorMsg = statusRes.data.error || '模拟异常终止'
+        addLog(`⚠ 检测到异常终止: ${errorMsg}`)
+        addLog('  └─ 将尝试重新启动模拟...')
+      }
     }
+    
+    // 检查模拟是否已准备好（配置是否已生成）
+    addLog('检查模拟准备状态...')
+    let configRes = null
+    try {
+      configRes = await getSimulationConfig(props.simulationId)
+    } catch (configErr) {
+      addLog('✗ 模拟尚未准备好，请先完成环境搭建 (Step 2)')
+      addLog(`  └─ 错误: ${configErr.message || '无法获取模拟配置'}`)
+      emit('update-status', 'error')
+      return
+    }
+    
+    if (!configRes?.success || !configRes?.data) {
+      addLog('✗ 模拟尚未准备好，请先完成环境搭建 (Step 2)')
+      addLog('  └─ 错误: 模拟配置不完整')
+      emit('update-status', 'error')
+      return
+    }
+    
+    addLog('✓ 模拟准备就绪，配置已加载')
     
     // 模拟未运行，需要启动
     resetAllState()
@@ -355,6 +391,47 @@ const fetchRunStatusDetail = async () => {
     }
   } catch (err) {
     console.warn('获取详情失败:', err)
+  }
+}
+
+// 加载已完成的模拟动作（用于页面刷新后显示历史数据）
+const loadCompletedActions = async () => {
+  if (!props.simulationId) return
+  
+  try {
+    addLog('正在加载历史动作数据...')
+    const res = await getRunStatusDetail(props.simulationId)
+    
+    if (res.success && res.data) {
+      const serverActions = res.data.all_actions || []
+      
+      // 清空现有数据，重新加载所有动作
+      allActions.value = []
+      actionIds.value.clear()
+      
+      serverActions.forEach(action => {
+        const actionId = action.id || `${action.timestamp}-${action.platform}-${action.agent_id}-${action.action_type}`
+        
+        if (!actionIds.value.has(actionId)) {
+          actionIds.value.add(actionId)
+          allActions.value.push({
+            ...action,
+            _uniqueId: actionId
+          })
+        }
+      })
+      
+      addLog(`✓ 已加载 ${allActions.value.length} 个历史动作`)
+      
+      nextTick(() => {
+        if (chatContainer.value) {
+          chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+        }
+      })
+    }
+  } catch (err) {
+    console.warn('加载历史动作失败:', err)
+    addLog('⚠ 加载历史动作失败')
   }
 }
 

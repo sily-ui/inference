@@ -1045,15 +1045,13 @@ def delete_simulation(simulation_id: str):
         import shutil
         from ..config import Config
 
-        # 构建模拟目录路径
-        sim_dir = os.path.join(Config.DATA_DIR, "simulations", simulation_id)
+        sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
 
         if not os.path.exists(sim_dir):
             return jsonify(
                 {"success": False, "error": f"模拟不存在: {simulation_id}"}
             ), 404
 
-        # 删除模拟目录
         shutil.rmtree(sim_dir)
 
         logger.info(f"模拟已删除: {simulation_id}")
