@@ -1958,18 +1958,7 @@ created → preparing → ready → running → completed/stopped/failed
 
 ### 动作类型
 
-**Twitter平台**
-
-| 动作 | 说明 |
-|------|------|
-| CREATE_POST | 发推文 |
-| LIKE_POST | 点赞 |
-| REPOST | 转发 |
-| QUOTE_POST | 引用转发 |
-| FOLLOW | 关注 |
-| DO_NOTHING | 无操作 |
-
-**Reddit平台**
+当前系统使用 Reddit 平台（国内舆情平台模拟），支持以下动作类型：
 
 | 动作 | 说明 |
 |------|------|
