@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: mirofish-backend
+    network_mode: host
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./.env:/app/.env:ro
+    environment:
+      - FLASK_DEBUG=False
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: mirofish-frontend
+    network_mode: host
+    restart: unless-stopped

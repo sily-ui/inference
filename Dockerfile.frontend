@@ -1,0 +1,39 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# 先复制 package.json 和 package-lock.json
+COPY frontend/package*.json ./
+
+# 安装依赖
+RUN npm install
+
+# 复制源代码
+COPY frontend/ ./
+
+# 构建生产版本
+RUN npm run build
+
+# 安装 nginx 用于托管静态文件
+RUN apk add --no-cache nginx
+
+# 配置 nginx
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    root /app/dist; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    location /api { \
+        proxy_pass http://host.docker.internal:5001; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for; \
+    } \
+}' > /etc/nginx/http.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
