@@ -338,30 +338,32 @@ class PublicOpinionPredictionService:
     ) -> List[Dict[str, Any]]:
         """使用LLM直接生成润色后的情景"""
 
-        prompt = f"""你是一位资深的舆情分析师。请为以下舆情事件预测可能的发展情景，并生成自然、专业的描述。
+        prompt = f"""你是一位资深的舆情分析师。请为以下舆情事件预测可能的发展情景。
 
 事件：{event_summary}
 当前情绪：{sentiment}
 
 请生成4-5个发展情景，每个情景包含：
 1. 简洁明了的名称
-2. 自然流畅的描述（60-80字）
+2. 结合事件背景的自然描述（60-80字），突出该情景的核心特征和可能的影响
 3. 概率（总和约100）
 4. 风险等级（high/medium/low）
-5. 关键因素
+5. 3-5个与该情景紧密相关的关键词
 6. 时间线预测
+7. 一句话核心洞察
 
 请以JSON格式返回：
 [{{
     "name": "场景名称",
-    "description": "自然流畅的描述文字...",
+    "description": "结合事件背景的自然描述...",
     "probability": 30,
     "risk_level": "medium",
-    "key_factors": ["因素1", "因素2"],
+    "keywords": ["关键词1", "关键词2", "关键词3"],
     "timeline": "时间线预测",
     "insight": "核心洞察"
 }}]
-"""
+
+只返回JSON数组，不要其他解释。"""
 
         try:
             response = self.llm_client.chat(
