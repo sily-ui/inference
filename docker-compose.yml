@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: mirofish-backend
+    container_name: inference-backend
     network_mode: host
     volumes:
       - ./backend/uploads:/app/uploads
@@ -18,6 +18,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    container_name: mirofish-frontend
+    container_name: inference-frontend
     network_mode: host
     restart: unless-stopped
