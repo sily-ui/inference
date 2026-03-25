@@ -110,3 +110,35 @@ class ReportProgress(db.Model):
             "completed_sections": self.completed_sections or [],
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+
+class Task(db.Model):
+    """任务模型 - 用于持久化存储任务状态"""
+    __tablename__ = "tasks"
+
+    task_id = db.Column(db.String(50), primary_key=True)
+    task_type = db.Column(db.String(50), nullable=False, index=True)
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    progress = db.Column(db.Integer, default=0)
+    message = db.Column(db.Text, nullable=True)
+    error = db.Column(db.Text, nullable=True)
+    result = db.Column(db.JSON, nullable=True)
+    task_metadata = db.Column(db.JSON, nullable=True)
+    progress_detail = db.Column(db.JSON, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    def to_dict(self):
+        return {
+            "task_id": self.task_id,
+            "task_type": self.task_type,
+            "status": self.status,
+            "progress": self.progress,
+            "message": self.message,
+            "error": self.error,
+            "result": self.result,
+            "metadata": self.task_metadata or {},
+            "progress_detail": self.progress_detail or {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }

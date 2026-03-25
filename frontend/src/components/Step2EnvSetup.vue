@@ -41,7 +41,7 @@
       <div class="step-card" :class="{ 'active': phase === 1, 'completed': phase > 1 }">
         <div class="card-header">
           <div class="step-info">
-            <span class="step-num">02</span>
+            <span class="step-num">01</span>
             <span class="step-title">生成 Agent 人设</span>
           </div>
           <div class="step-status">
@@ -110,7 +110,7 @@
       <div class="step-card" :class="{ 'active': phase === 2, 'completed': phase > 2 }">
         <div class="card-header">
           <div class="step-info">
-            <span class="step-num">03</span>
+            <span class="step-num">02</span>
             <span class="step-title">国内舆情平台模拟配置</span>
           </div>
           <div class="step-status">
@@ -330,7 +330,7 @@
       <div class="step-card" :class="{ 'active': phase === 3, 'completed': phase > 3 }">
         <div class="card-header">
           <div class="step-info">
-            <span class="step-num">04</span>
+            <span class="step-num">03</span>
             <span class="step-title">初始激活编排</span>
           </div>
           <div class="step-status">
@@ -399,7 +399,7 @@
       <div v-if="phase >= 4" class="step-card active">
         <div class="card-header">
           <div class="step-info">
-            <span class="step-num">01</span>
+            <span class="step-num">04</span>
             <span class="step-title">准备完成</span>
           </div>
           <div class="step-status">
@@ -548,7 +548,7 @@
               :disabled="phase < 4"
               @click="handleStartSimulation"
             >
-              开始双世界并行模拟 ➝
+              开始国内舆论平台模拟 ➝
             </button>
           </div>
         </div>

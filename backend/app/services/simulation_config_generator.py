@@ -727,12 +727,20 @@ class SimulationConfigGenerator:
 
 ## 任务
 请生成事件配置JSON：
-- 提取热点话题关键词
+- 提取热点话题关键词（3-5个）
 - 描述舆论发展方向
 - 设计初始帖子内容，**每个帖子必须指定 poster_type（发布者类型）**
 
-**重要**: poster_type 必须从上面的"可用实体类型"中选择，这样初始帖子才能分配给合适的 Agent 发布。
-例如：官方声明应由 Official/University 类型发布，新闻由 MediaOutlet 发布，学生观点由 Student 发布。
+**重要要求**:
+1. poster_type 必须从上面的"可用实体类型"中选择，这样初始帖子才能分配给合适的 Agent 发布
+2. **初始帖子数量要求**: 至少生成 12-15 个初始帖子，确保模拟事件丰富
+3. **内容相关性要求**: 所有帖子内容必须与"{simulation_requirement}"主题高度相关，禁止生成无关内容
+4. **帖子类型分配**:
+   - 官方声明/回应: 2-3个（由 Official/University/Government 类型发布）
+   - 媒体报道: 3-4个（由 MediaOutlet 类型发布）
+   - 公众/学生观点: 5-6个（由 Student/Public/Netizen 类型发布）
+   - 专家/学者评论: 2-3个（由 Expert/Professor 类型发布）
+   - 企业/机构回应: 1-2个（由 Company/Organization 类型发布）
 
 返回JSON格式（不要markdown）：
 {{

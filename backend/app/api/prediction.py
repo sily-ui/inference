@@ -181,6 +181,124 @@ def chat_about_prediction():
         ), 500
 
 
+@prediction_bp.route("/chat/stream", methods=["POST"])
+def chat_about_prediction_stream():
+    """
+    AI对话 - 流式返回（SSE）
+
+    请求（JSON）：
+        {
+            "question": "用户问题",
+            "prediction_data": {...}  // 预测数据
+        }
+
+    返回（SSE流）：
+        data: {"content": "文本片段"}
+        ...
+        data: {"done": true, "full_content": "完整回答"}
+    """
+    try:
+        data = request.get_json() or {}
+
+        question = data.get("question", "")
+        prediction_data = data.get("prediction_data", {})
+
+        if not question:
+            return jsonify({"success": False, "error": "请提供问题"}), 400
+
+        scenarios = prediction_data.get("scenarios", [])
+        warnings = prediction_data.get("warnings", [])
+        timeline = prediction_data.get("timeline", [])
+
+        scenario_text = ""
+        for i, s in enumerate(scenarios[:3], 1):
+            scenario_text += f"\n{i}. {s.get('name', '')} (概率{s.get('probability', 0)}%, 风险等级:{s.get('risk_level', 'medium')})"
+            scenario_text += f"\n   描述：{s.get('description', '')[:100]}"
+            scenario_text += f"\n   关键因素：{', '.join(s.get('key_factors', [])[:2])}"
+
+        warning_text = ""
+        if warnings:
+            for w in warnings[:3]:
+                warning_text += f"\n- 第{w.get('day', 0)}天: {w.get('description', '')} (等级:{w.get('level', 'medium')})"
+        else:
+            warning_text = "\n暂无重大风险预警"
+
+        timeline_highlights = ""
+        if timeline:
+            high_heat_days = [t for t in timeline if t.get('heat', 0) > 70][:3]
+            for t in high_heat_days:
+                timeline_highlights += f"\n- 第{t.get('day', 0)}天: 热度{t.get('heat', 0)}, {t.get('event', '')}"
+
+        context = f"""你是MiroFish舆情预测系统的AI助手，一位资深的舆情分析专家。请基于以下详细的预测数据，为用户提供专业、实用、可操作的建议。
+
+【事件背景】
+{prediction_data.get("event_summary", "")}
+
+【预测结论】
+{prediction_data.get("conclusion", "")}
+
+【情景分析】（按概率排序）
+{scenario_text}
+
+【关键预警】
+{warning_text}
+
+【热度高峰节点】
+{timeline_highlights if timeline_highlights else '热度分布较为平稳'}
+
+【用户问题】
+{question}
+
+【回答要求】
+1. 回答要基于上述预测数据，给出具体、有针对性的建议
+2. 如果涉及应对措施，请分点列出可执行的步骤
+3. 如果涉及风险评估，说明概率和可能的影响
+4. 语言专业但易懂，避免空洞的套话
+5. 控制在200字以内，重点突出
+
+请直接给出回答："""
+
+        service = PublicOpinionPredictionService()
+
+        def generate():
+            import sys
+            full_content = ""
+            try:
+                for chunk in service.llm_client.chat_stream(
+                    messages=[{"role": "user", "content": context}],
+                    temperature=0.7,
+                    max_tokens=600,
+                ):
+                    full_content += chunk
+                    data = json.dumps({'content': chunk}, ensure_ascii=False)
+                    yield f"data: {data}\n\n"
+                    sys.stdout.flush()
+                data = json.dumps({'done': True, 'full_content': full_content}, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+            except Exception as e:
+                logger.error(f"流式对话失败: {str(e)}")
+                data = json.dumps({'error': str(e), 'done': True}, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+
+        from flask import make_response
+        response = make_response(Response(
+            stream_with_context(generate()),
+            mimetype="text/event-stream"
+        ))
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["X-Accel-Buffering"] = "no"
+        response.headers["Transfer-Encoding"] = "chunked"
+        response.headers["Connection"] = "keep-alive"
+        response.headers["Content-Type"] = "text/event-stream; charset=utf-8"
+        return response
+
+    except Exception as e:
+        logger.error(f"对话失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
 @prediction_bp.route("/demo", methods=["GET"])
 def demo_prediction():
     """

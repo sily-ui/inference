@@ -1892,6 +1892,13 @@ def get_run_status_detail(simulation_id: str):
 
         # 获取基础状态信息
         result = run_state.to_dict()
+        
+        # 如果 all_actions 为空（actions.jsonl 可能没有正确记录动作），使用 recent_actions 作为备选
+        if not all_actions and run_state.recent_actions:
+            all_actions = run_state.recent_actions
+            twitter_actions = [a for a in run_state.recent_actions if a.platform == "twitter"]
+            reddit_actions = [a for a in run_state.recent_actions if a.platform == "reddit"]
+        
         result["all_actions"] = [a.to_dict() for a in all_actions]
         result["twitter_actions"] = [a.to_dict() for a in twitter_actions]
         result["reddit_actions"] = [a.to_dict() for a in reddit_actions]

@@ -305,7 +305,7 @@ class ZepGraphMemoryUpdater:
     def add_activity(self, activity: AgentActivity):
         """
         添加一个agent活动到队列
-        
+
         所有有意义的行为都会被添加到队列，包括：
         - CREATE_POST（发帖）
         - CREATE_COMMENT（评论）
@@ -317,20 +317,23 @@ class ZepGraphMemoryUpdater:
         - FOLLOW（关注）
         - MUTE（屏蔽）
         - LIKE_COMMENT/DISLIKE_COMMENT（点赞/踩评论）
-        
+
         action_args中会包含完整的上下文信息（如帖子原文、用户名等）。
-        
+
         Args:
             activity: Agent活动记录
         """
         # 跳过DO_NOTHING类型的活动
         if activity.action_type == "DO_NOTHING":
             self._skipped_count += 1
+            logger.debug(f"跳过DO_NOTHING活动: round={activity.round_num}")
             return
-        
+
         self._activity_queue.put(activity)
         self._total_activities += 1
-        logger.debug(f"添加活动到Zep队列: {activity.agent_name} - {activity.action_type}")
+        content_preview = activity.action_args.get("content", "")[:50] if activity.action_args else ""
+        logger.info(f"[Zep队列] 添加活动: platform={activity.platform}, agent={activity.agent_name}, "
+                   f"type={activity.action_type}, round={activity.round_num}, content='{content_preview}...'")
     
     def add_activity_from_dict(self, data: Dict[str, Any], platform: str):
         """

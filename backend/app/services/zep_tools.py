@@ -891,7 +891,7 @@ class ZepToolsService:
         self, 
         graph_id: str,
         simulation_requirement: str,
-        limit: int = 30
+        limit: int = 100
     ) -> Dict[str, Any]:
         """
         获取模拟相关的上下文信息
@@ -932,11 +932,38 @@ class ZepToolsService:
                     "summary": node.summary
                 })
         
+        # 优化实体选择：确保类型多样性，避免单一类型过多
+        # 限制媒体类型实体数量，增加其他类型实体
+        type_limits = {
+            "MediaOutlet": 5,  # 媒体最多5个
+        }
+        
+        type_counts = {}
+        diverse_entities = []
+        
+        for entity in entities:
+            entity_type = entity.get("type", "Unknown")
+            type_count = type_counts.get(entity_type, 0)
+            type_limit = type_limits.get(entity_type, float('inf'))
+            
+            if type_count < type_limit:
+                diverse_entities.append(entity)
+                type_counts[entity_type] = type_count + 1
+        
+        # 如果多样化选择后数量不足，补充其他实体
+        if len(diverse_entities) < min(limit, len(entities)):
+            existing_names = {e["name"] for e in diverse_entities}
+            for entity in entities:
+                if entity["name"] not in existing_names:
+                    diverse_entities.append(entity)
+                    if len(diverse_entities) >= limit:
+                        break
+        
         return {
             "simulation_requirement": simulation_requirement,
             "related_facts": search_result.facts,
             "graph_statistics": stats,
-            "entities": entities[:limit],  # 限制数量
+            "entities": diverse_entities[:limit],  # 限制数量
             "total_entities": len(entities)
         }
     

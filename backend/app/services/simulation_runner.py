@@ -711,7 +711,12 @@ class SimulationRunner:
                             # 如果启用了图谱记忆更新，将活动发送到Zep
                             if graph_updater:
                                 graph_updater.add_activity_from_dict(action_data, platform)
-                            
+                                logger.info(f"[动作读取] 发送到Zep: platform={platform}, agent={action_data.get('agent_name')}, "
+                                           f"type={action_data.get('action_type')}, round={action_data.get('round')}")
+                            else:
+                                logger.debug(f"[动作读取] 图谱更新未启用: platform={platform}, agent={action_data.get('agent_name')}, "
+                                            f"type={action_data.get('action_type')}, round={action_data.get('round')}")
+
                         except json.JSONDecodeError:
                             pass
                 return f.tell()

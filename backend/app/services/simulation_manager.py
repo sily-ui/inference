@@ -318,7 +318,8 @@ class SimulationManager:
                 graph_id=state.graph_id,
                 parallel_count=parallel_profile_count,
                 realtime_output_path=realtime_output_path,
-                output_platform=realtime_platform
+                output_platform=realtime_platform,
+                simulation_topic=simulation_requirement
             )
 
             state.profiles_count = len(profiles)

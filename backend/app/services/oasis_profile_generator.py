@@ -212,7 +212,8 @@ class OasisProfileGenerator:
         self, 
         entity: EntityNode, 
         user_id: int,
-        use_llm: bool = True
+        use_llm: bool = True,
+        simulation_topic: str = ""
     ) -> OasisAgentProfile:
         """
         从Zep实体生成OASIS Agent Profile
@@ -221,6 +222,7 @@ class OasisProfileGenerator:
             entity: Zep实体节点
             user_id: 用户ID（用于OASIS）
             use_llm: 是否使用LLM生成详细人设
+            simulation_topic: 模拟主题，用于约束Agent人设与主题相关
             
         Returns:
             OasisAgentProfile
@@ -241,7 +243,8 @@ class OasisProfileGenerator:
                 entity_type=entity_type,
                 entity_summary=entity.summary,
                 entity_attributes=entity.attributes,
-                context=context
+                context=context,
+                simulation_topic=simulation_topic
             )
         else:
             # 使用规则生成基础人设
@@ -249,7 +252,8 @@ class OasisProfileGenerator:
                 entity_name=name,
                 entity_type=entity_type,
                 entity_summary=entity.summary,
-                entity_attributes=entity.attributes
+                entity_attributes=entity.attributes,
+                simulation_topic=simulation_topic
             )
         
         return OasisAgentProfile(
@@ -499,7 +503,8 @@ class OasisProfileGenerator:
         entity_type: str,
         entity_summary: str,
         entity_attributes: Dict[str, Any],
-        context: str
+        context: str,
+        simulation_topic: str = ""
     ) -> Dict[str, Any]:
         """
         使用LLM生成非常详细的人设
@@ -513,11 +518,11 @@ class OasisProfileGenerator:
         
         if is_individual:
             prompt = self._build_individual_persona_prompt(
-                entity_name, entity_type, entity_summary, entity_attributes, context
+                entity_name, entity_type, entity_summary, entity_attributes, context, simulation_topic
             )
         else:
             prompt = self._build_group_persona_prompt(
-                entity_name, entity_type, entity_summary, entity_attributes, context
+                entity_name, entity_type, entity_summary, entity_attributes, context, simulation_topic
             )
 
         # 尝试多次生成，直到成功或达到最大重试次数
@@ -679,12 +684,14 @@ class OasisProfileGenerator:
         entity_type: str,
         entity_summary: str,
         entity_attributes: Dict[str, Any],
-        context: str
+        context: str,
+        simulation_topic: str = ""
     ) -> str:
         """构建个人实体的详细人设提示词"""
         
         attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else "无"
         context_str = context[:3000] if context else "无额外上下文"
+        topic_str = f"\n**核心主题约束**: 该Agent参与讨论的舆情事件主题是「{simulation_topic}」。所有发言内容必须与此主题高度相关，禁止讨论无关话题。" if simulation_topic else ""
         
         return f"""为实体生成详细的社交媒体用户人设,最大程度还原已有现实情况。
 
@@ -694,7 +701,7 @@ class OasisProfileGenerator:
 实体属性: {attrs_str}
 
 上下文信息:
-{context_str}
+{context_str}{topic_str}
 
 请生成JSON，包含以下字段:
 
@@ -707,12 +714,13 @@ class OasisProfileGenerator:
    - 立场观点（对话题的态度、可能被激怒/感动的内容）
    - 独特特征（口头禅、特殊经历、个人爱好）
    - 个人记忆（人设的重要部分，要介绍这个个体与事件的关联，以及这个个体在事件中的已有动作与反应）
+   - **主题约束**: 明确说明该Agent只关注和讨论「{simulation_topic or '当前舆情事件'}」相关内容，不会参与无关话题讨论
 3. age: 年龄数字（必须是整数）
 4. gender: 性别，必须是英文: "male" 或 "female"
 5. mbti: MBTI类型（如INTJ、ENFP等）
 6. country: 国家（使用中文，如"中国"）
 7. profession: 职业
-8. interested_topics: 感兴趣话题数组
+8. interested_topics: 感兴趣话题数组（必须与「{simulation_topic or '当前事件'}」相关）
 
 重要:
 - 所有字段值必须是字符串或数字，不要使用换行符
@@ -720,6 +728,7 @@ class OasisProfileGenerator:
 - 使用中文（除了gender字段必须用英文male/female）
 - 内容要与实体信息保持一致
 - age必须是有效的整数，gender必须是"male"或"female"
+- **关键约束**: 该Agent的人设必须围绕核心主题构建，所有interested_topics都必须与主题相关
 """
 
     def _build_group_persona_prompt(
@@ -728,12 +737,14 @@ class OasisProfileGenerator:
         entity_type: str,
         entity_summary: str,
         entity_attributes: Dict[str, Any],
-        context: str
+        context: str,
+        simulation_topic: str = ""
     ) -> str:
         """构建群体/机构实体的详细人设提示词"""
         
         attrs_str = json.dumps(entity_attributes, ensure_ascii=False) if entity_attributes else "无"
         context_str = context[:3000] if context else "无额外上下文"
+        topic_str = f"\n**核心主题约束**: 该机构账号参与讨论的舆情事件主题是「{simulation_topic}」。所有发布内容必须与此主题高度相关，禁止发布无关信息。" if simulation_topic else ""
         
         return f"""为机构/群体实体生成详细的社交媒体账号设定,最大程度还原已有现实情况。
 
@@ -743,7 +754,7 @@ class OasisProfileGenerator:
 实体属性: {attrs_str}
 
 上下文信息:
-{context_str}
+{context_str}{topic_str}
 
 请生成JSON，包含以下字段:
 
@@ -756,91 +767,101 @@ class OasisProfileGenerator:
    - 立场态度（对核心话题的官方立场、面对争议的处理方式）
    - 特殊说明（代表的群体画像、运营习惯）
    - 机构记忆（机构人设的重要部分，要介绍这个机构与事件的关联，以及这个机构在事件中的已有动作与反应）
+   - **主题约束**: 明确说明该账号只发布与「{simulation_topic or '当前舆情事件'}」相关的内容，不会发布无关信息
 3. age: 固定填30（机构账号的虚拟年龄）
 4. gender: 固定填"other"（机构账号使用other表示非个人）
 5. mbti: MBTI类型，用于描述账号风格，如ISTJ代表严谨保守
 6. country: 国家（使用中文，如"中国"）
 7. profession: 机构职能描述
-8. interested_topics: 关注领域数组
+8. interested_topics: 关注领域数组（必须与「{simulation_topic or '当前事件'}」相关）
 
 重要:
 - 所有字段值必须是字符串或数字，不允许null值
 - persona必须是一段连贯的文字描述，不要使用换行符
 - 使用中文（除了gender字段必须用英文"other"）
 - age必须是整数30，gender必须是字符串"other"
-- 机构账号发言要符合其身份定位"""
+- 机构账号发言要符合其身份定位
+- **关键约束**: 该账号的人设必须围绕核心主题构建，所有interested_topics都必须与主题相关"""
     
     def _generate_profile_rule_based(
         self,
         entity_name: str,
         entity_type: str,
         entity_summary: str,
-        entity_attributes: Dict[str, Any]
+        entity_attributes: Dict[str, Any],
+        simulation_topic: str = ""
     ) -> Dict[str, Any]:
         """使用规则生成基础人设"""
         
         # 根据实体类型生成不同的人设
         entity_type_lower = entity_type.lower()
         
+        # 构建主题相关的interested_topics
+        if simulation_topic:
+            topic_keywords = simulation_topic.replace("分析", "").replace("舆情", "").replace("模拟", "").strip()
+            base_topics = [topic_keywords, "相关讨论", "社会关注"]
+        else:
+            base_topics = ["Social Issues", "Current Events"]
+        
         if entity_type_lower in ["student", "alumni"]:
             return {
                 "bio": f"{entity_type} with interests in academics and social issues.",
-                "persona": f"{entity_name} is a {entity_type.lower()} who is actively engaged in academic and social discussions. They enjoy sharing perspectives and connecting with peers.",
+                "persona": f"{entity_name} is a {entity_type.lower()} who is actively engaged in academic and social discussions. They focus on topics related to {simulation_topic or 'current events'} and enjoy sharing perspectives on relevant matters.",
                 "age": random.randint(18, 30),
                 "gender": random.choice(["male", "female"]),
                 "mbti": random.choice(self.MBTI_TYPES),
                 "country": random.choice(self.COUNTRIES),
                 "profession": "Student",
-                "interested_topics": ["Education", "Social Issues", "Technology"],
+                "interested_topics": base_topics + ["Education"],
             }
         
         elif entity_type_lower in ["publicfigure", "expert", "faculty"]:
             return {
                 "bio": f"Expert and thought leader in their field.",
-                "persona": f"{entity_name} is a recognized {entity_type.lower()} who shares insights and opinions on important matters. They are known for their expertise and influence in public discourse.",
+                "persona": f"{entity_name} is a recognized {entity_type.lower()} who shares insights and opinions on {simulation_topic or 'important matters'}. They are known for their expertise and influence in public discourse related to this topic.",
                 "age": random.randint(35, 60),
                 "gender": random.choice(["male", "female"]),
                 "mbti": random.choice(["ENTJ", "INTJ", "ENTP", "INTP"]),
                 "country": random.choice(self.COUNTRIES),
                 "profession": entity_attributes.get("occupation", "Expert"),
-                "interested_topics": ["Politics", "Economics", "Culture & Society"],
+                "interested_topics": base_topics + ["Public Discourse"],
             }
         
         elif entity_type_lower in ["mediaoutlet", "socialmediaplatform"]:
             return {
                 "bio": f"Official account for {entity_name}. News and updates.",
-                "persona": f"{entity_name} is a media entity that reports news and facilitates public discourse. The account shares timely updates and engages with the audience on current events.",
+                "persona": f"{entity_name} is a media entity that reports news about {simulation_topic or 'current events'}. The account shares timely updates and engages with the audience on relevant matters only.",
                 "age": 30,  # 机构虚拟年龄
                 "gender": "other",  # 机构使用other
                 "mbti": "ISTJ",  # 机构风格：严谨保守
                 "country": "中国",
                 "profession": "Media",
-                "interested_topics": ["General News", "Current Events", "Public Affairs"],
+                "interested_topics": base_topics + ["News Reporting"],
             }
         
         elif entity_type_lower in ["university", "governmentagency", "ngo", "organization"]:
             return {
                 "bio": f"Official account of {entity_name}.",
-                "persona": f"{entity_name} is an institutional entity that communicates official positions, announcements, and engages with stakeholders on relevant matters.",
+                "persona": f"{entity_name} is an institutional entity that communicates official positions, announcements, and engages with stakeholders on matters related to {simulation_topic or 'relevant topics'}.",
                 "age": 30,  # 机构虚拟年龄
                 "gender": "other",  # 机构使用other
                 "mbti": "ISTJ",  # 机构风格：严谨保守
                 "country": "中国",
                 "profession": entity_type,
-                "interested_topics": ["Public Policy", "Community", "Official Announcements"],
+                "interested_topics": base_topics + ["Official Communications"],
             }
         
         else:
             # 默认人设
             return {
                 "bio": entity_summary[:150] if entity_summary else f"{entity_type}: {entity_name}",
-                "persona": entity_summary or f"{entity_name} is a {entity_type.lower()} participating in social discussions.",
+                "persona": entity_summary or f"{entity_name} is a {entity_type.lower()} participating in discussions about {simulation_topic or 'social topics'}.",
                 "age": random.randint(25, 50),
                 "gender": random.choice(["male", "female"]),
                 "mbti": random.choice(self.MBTI_TYPES),
                 "country": random.choice(self.COUNTRIES),
                 "profession": entity_type,
-                "interested_topics": ["General", "Social Issues"],
+                "interested_topics": base_topics,
             }
     
     def set_graph_id(self, graph_id: str):
@@ -855,7 +876,8 @@ class OasisProfileGenerator:
         graph_id: Optional[str] = None,
         parallel_count: int = 5,
         realtime_output_path: Optional[str] = None,
-        output_platform: str = "reddit"
+        output_platform: str = "reddit",
+        simulation_topic: str = ""
     ) -> List[OasisAgentProfile]:
         """
         批量从实体生成Agent Profile（支持并行生成）
@@ -868,6 +890,7 @@ class OasisProfileGenerator:
             parallel_count: 并行生成数量，默认5
             realtime_output_path: 实时写入的文件路径（如果提供，每生成一个就写入一次）
             output_platform: 输出平台格式 ("reddit" 或 "twitter")
+            simulation_topic: 模拟主题，用于约束所有Agent人设与主题相关
             
         Returns:
             Agent Profile列表
@@ -923,7 +946,8 @@ class OasisProfileGenerator:
                 profile = self.generate_profile_from_entity(
                     entity=entity,
                     user_id=idx,
-                    use_llm=use_llm
+                    use_llm=use_llm,
+                    simulation_topic=simulation_topic
                 )
                 
                 # 实时输出生成的人设到控制台和日志
@@ -939,7 +963,7 @@ class OasisProfileGenerator:
                     user_name=self._generate_username(entity.name),
                     name=entity.name,
                     bio=f"{entity_type}: {entity.name}",
-                    persona=entity.summary or f"A participant in social discussions.",
+                    persona=entity.summary or f"A participant in social discussions about {simulation_topic or 'relevant topics'}.",
                     source_entity_uuid=entity.uuid,
                     source_entity_type=entity_type,
                 )

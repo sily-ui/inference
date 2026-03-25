@@ -376,6 +376,48 @@ class SimulationRunner:
     def _get_db_path(self) -> str:
         return os.path.join(self.simulation_dir, "simulation.db")
 
+    def _fetch_actions_from_db(self, platform: str = "reddit") -> list:
+        """从数据库读取上一轮的动作记录"""
+        db_path = self._get_db_path()
+        if not os.path.exists(db_path):
+            return []
+
+        actions = []
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT user_id, action, info, created_at
+                FROM trace
+                ORDER BY created_at ASC
+            """)
+
+            rows = cursor.fetchall()
+            for row in rows:
+                user_id, action_type, info_json, created_at = row
+                try:
+                    info = json.loads(info_json) if info_json else {}
+                    agent_name = info.get("username", f"agent_{user_id}")
+
+                    action_entry = {
+                        "agent_id": user_id,
+                        "agent_name": agent_name,
+                        "action_type": action_type,
+                        "action_args": info,
+                        "timestamp": created_at,
+                        "platform": platform,
+                    }
+                    actions.append(action_entry)
+                except json.JSONDecodeError:
+                    pass
+
+            conn.close()
+        except Exception as e:
+            print(f"  读取数据库动作失败: {e}")
+
+        return actions
+
     def _create_model(self):
         llm_api_key = os.environ.get("LLM_API_KEY", "")
         llm_base_url = os.environ.get("LLM_BASE_URL", "")
@@ -585,10 +627,37 @@ class SimulationRunner:
                     actions[agent] = action
 
                 actions_count = 0
+                prev_action_count = 0
                 try:
+                    prev_action_count = len(self._fetch_actions_from_db())
                     await self.env.step(actions)
-                    # 统计动作数量（这里简化处理，实际应该从环境返回中获取）
-                    actions_count = len(actions)
+
+                    new_actions = self._fetch_actions_from_db()
+                    if len(new_actions) > prev_action_count:
+                        new_action_entries = new_actions[prev_action_count:]
+                        for entry in new_action_entries:
+                            reddit_logger.log_action(
+                                round_num=round_num + 1,
+                                agent_id=entry.get("agent_id", 0),
+                                agent_name=entry.get("agent_name", ""),
+                                action_type=entry.get("action_type", ""),
+                                action_args=entry.get("action_args", {}),
+                                result=entry.get("result"),
+                                success=True
+                            )
+                            twitter_logger.log_action(
+                                round_num=round_num + 1,
+                                agent_id=entry.get("agent_id", 0),
+                                agent_name=entry.get("agent_name", ""),
+                                action_type=entry.get("action_type", ""),
+                                action_args=entry.get("action_args", {}),
+                                result=entry.get("result"),
+                                success=True
+                            )
+                        actions_count = len(new_action_entries)
+                        print(f"  执行了 {actions_count} 个动作", flush=True)
+                    else:
+                        actions_count = len(actions)
                 except Exception as e:
                     print(f"  模拟步骤出错: {e}")
 
@@ -612,10 +681,11 @@ class SimulationRunner:
 
         finally:
             self.ipc_handler.update_status("completed")
-            # 记录模拟结束
-            twitter_logger.log_simulation_end(completed_rounds, completed_rounds * 3)  # 估算动作数
-            reddit_logger.log_simulation_end(completed_rounds, completed_rounds * 3)
-            print(f"\n模拟完成: {completed_rounds}/{total_rounds} 轮", flush=True)
+            final_actions = self._fetch_actions_from_db()
+            total_actions = len(final_actions)
+            twitter_logger.log_simulation_end(completed_rounds, total_actions)
+            reddit_logger.log_simulation_end(completed_rounds, total_actions)
+            print(f"\n模拟完成: {completed_rounds}/{total_rounds} 轮, 总动作数: {total_actions}", flush=True)
             print(f"数据库: {db_path}", flush=True)
 
 

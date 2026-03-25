@@ -1107,6 +1107,19 @@ class ReportAgent:
                 result = [n.to_dict() for n in nodes]
                 return json.dumps(result, ensure_ascii=False, indent=2)
 
+            elif tool_name in ["insight_force", "insight-forge", "insightforge"]:
+                # 容错处理：LLM 可能拼写错误
+                logger.warning(f"工具名拼写错误 '{tool_name}'，已纠正为 'insight_forge'")
+                query = parameters.get("query", self.simulation_requirement)
+                report_context = parameters.get("report_context", "")
+                result = self.zep_tools.insight_forge(
+                    graph_id=self.graph_id,
+                    query=query,
+                    simulation_requirement=self.simulation_requirement,
+                    report_context=report_context,
+                )
+                return json.dumps(result.to_dict(), ensure_ascii=False, indent=2)
+
             else:
                 return f"未知工具: {tool_name}。请使用以下工具之一: insight_forge, panorama_search, quick_search"
 
@@ -2383,7 +2396,9 @@ class ReportManager:
 
             if has_app_context():
                 # 已经有应用上下文，直接使用
-                db_progress = DbReportProgress.query.get(report_id)
+                # 使用 filter_by(report_id=...) 而不是 query.get(report_id)
+                # 因为 ReportProgress.id 是自增整数，不是 report_id
+                db_progress = DbReportProgress.query.filter_by(report_id=report_id).first()
                 if not db_progress:
                     db_progress = DbReportProgress(report_id=report_id)
                     db.session.add(db_progress)
@@ -2405,7 +2420,8 @@ class ReportManager:
         """获取报告生成进度（优先从数据库读取）"""
         # 优先从数据库读取
         try:
-            db_progress = DbReportProgress.query.get(report_id)
+            # 使用 filter_by(report_id=...) 而不是 query.get(report_id)
+            db_progress = DbReportProgress.query.filter_by(report_id=report_id).first()
             if db_progress:
                 return db_progress.to_dict()
         except Exception as e:
