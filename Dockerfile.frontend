@@ -20,7 +20,7 @@ RUN apk add --no-cache nginx
 
 # 配置 nginx
 RUN echo 'server { \
-    listen 80; \
+    listen 8080; \
     server_name localhost; \
     root /app/dist; \
     index index.html; \
@@ -35,6 +35,6 @@ RUN echo 'server { \
     } \
 }' > /etc/nginx/http.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
