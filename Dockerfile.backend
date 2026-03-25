@@ -7,11 +7,12 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制依赖文件
-COPY backend/pyproject.toml backend/requirements.txt ./
+# 复制依赖文件到正确位置
+COPY backend/pyproject.toml ./pyproject.toml
+COPY backend/requirements.txt ./requirements.txt
 
 # 安装 Python 依赖
-RUN pip install --no-cache-dir -r backend/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制后端代码
 COPY backend/ .
