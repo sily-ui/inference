@@ -7,14 +7,12 @@ services:
       dockerfile: Dockerfile.backend
     container_name: inference-backend
     network_mode: host
-    env_file:
-      - ./.env
-    environment:
-      - FLASK_DEBUG=False
-      - FLASK_PORT=5000
     volumes:
       - ./backend/uploads:/app/uploads
       - ./.env:/app/.env:ro
+    environment:
+      - FLASK_DEBUG=False
+      - FLASK_PORT=5000
     restart: unless-stopped
 
   frontend:
