@@ -18,7 +18,7 @@ openai>=1.0.0
 
 # ============= 搜索服务 =============
 # Tavily 搜索 API
-tavily-python>=0.2.0
+tavily-python
 
 # ============= Zep Cloud =============
 zep-cloud==3.13.0
