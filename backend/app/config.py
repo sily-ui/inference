@@ -7,14 +7,20 @@ import os
 from dotenv import load_dotenv
 
 # 加载项目根目录的 .env 文件
-# 路径: MiroFish/.env (相对于 backend/app/config.py)
-project_root_env = os.path.join(os.path.dirname(__file__), "../../.env")
+# Docker 容器中: /app/.env
+# 本地开发: backend/app/../../.env = inference/.env
+possible_paths = [
+    "/app/.env",  # Docker 容器中的路径
+    os.path.join(os.path.dirname(__file__), "../../.env"),  # 本地开发路径
+]
 
-if os.path.exists(project_root_env):
-    load_dotenv(project_root_env, override=True)
-    print(f"[DEBUG] 加载 .env 文件: {project_root_env}")
+for env_path in possible_paths:
+    if os.path.exists(env_path):
+        load_dotenv(env_path, override=True)
+        print(f"[DEBUG] 加载 .env 文件: {env_path}")
+        break
 else:
-    print(f"[DEBUG] .env 文件不存在: {project_root_env}")
+    print(f"[DEBUG] .env 文件不存在，尝试从环境变量加载")
     load_dotenv(override=True)
 
 # 调试：打印实际加载的 ZEP_API_KEY
