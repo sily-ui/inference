@@ -24,7 +24,7 @@ COPY backend/ .
 RUN mkdir -p /app/uploads/simulations /app/uploads/reports /app/uploads/documents
 
 # 暴露端口（虽然使用host网络，但仍需声明）
-EXPOSE 5001
+EXPOSE 5000
 
 # 启动命令
 CMD ["python", "run.py"]
