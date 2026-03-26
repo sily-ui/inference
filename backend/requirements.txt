@@ -16,6 +16,10 @@ flasgger>=0.9.7
 # OpenAI SDK（统一使用 OpenAI 格式调用 LLM）
 openai>=1.0.0
 
+# ============= 搜索服务 =============
+# Tavily 搜索 API
+tavily-python>=0.2.0
+
 # ============= Zep Cloud =============
 zep-cloud==3.13.0
 
