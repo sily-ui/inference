@@ -2,16 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖（及时清理缓存）
 RUN apt-get update && apt-get install -y \
     curl \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制依赖文件
-COPY backend/pyproject.toml backend/requirements.txt ./
+# 复制依赖文件到正确位置
+COPY backend/pyproject.toml ./pyproject.toml
+COPY backend/requirements.txt ./requirements.txt
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r backend/requirements.txt
+# 配置 pip 镜像源（加速国内下载）
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/ \
+    && pip config set global.timeout 600 \
+    && pip install --no-cache-dir --timeout 600 -r requirements.txt
 
 # 复制后端代码
 COPY backend/ .
@@ -20,7 +24,7 @@ COPY backend/ .
 RUN mkdir -p /app/uploads/simulations /app/uploads/reports /app/uploads/documents
 
 # 暴露端口（虽然使用host网络，但仍需声明）
-EXPOSE 5001
+EXPOSE 5000
 
 # 启动命令
 CMD ["python", "run.py"]
