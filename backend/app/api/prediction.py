@@ -22,6 +22,7 @@ from flask import request, jsonify, Response, stream_with_context
 from . import prediction_bp
 from ..services.prediction_service import PublicOpinionPredictionService
 from ..services.prediction_agent import PredictionAgent, PredictionLogger
+from ..services.intervention_sandbox import InterventionSandboxService
 from ..config import Config
 from ..utils.logger import get_logger
 
@@ -571,6 +572,408 @@ def get_agent_logs(prediction_id):
 
     except Exception as e:
         logger.error(f"获取日志失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+# ============================================================
+# 蝴蝶效应沙盒 - 干预推演API
+# ============================================================
+
+
+@prediction_bp.route("/intervention-cards", methods=["POST"])
+def generate_intervention_cards():
+    """
+    生成干预动作卡片
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "scenarios": [...],
+            "current_sentiment": "负面",
+            "warnings": [...]
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "cards": [{id, type, name, icon, description, estimated_effect, best_timing, risks, prerequisite}]
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        scenarios = data.get("scenarios", [])
+        current_sentiment = data.get("current_sentiment", "中性")
+        warnings = data.get("warnings", [])
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_intervention_cards(
+            event_summary=event_summary,
+            scenarios=scenarios,
+            current_sentiment=current_sentiment,
+            warnings=warnings,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"生成干预卡片失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@prediction_bp.route("/intervention-timeline", methods=["POST"])
+def generate_intervention_timeline():
+    """
+    生成分叉时间线
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "current_sentiment": "负面",
+            "time_range": 7,
+            "intervention_type": "official_statement",
+            "intervention_description": "发布官方声明",
+            "intervention_day": 2,
+            "original_timeline": [...]
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "branch_timeline": [...],
+                "comparison": {peak_heat_change, avg_sentiment_change, risk_reduction, recovery_speedup_days},
+                "analysis": "..."
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        current_sentiment = data.get("current_sentiment", "中性")
+        time_range = data.get("time_range", 7)
+        intervention_type = data.get("intervention_type", "official_statement")
+        intervention_description = data.get("intervention_description", "")
+        intervention_day = data.get("intervention_day", 2)
+        original_timeline = data.get("original_timeline", [])
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        if not original_timeline:
+            return jsonify({"success": False, "error": "请提供原始预测时间线"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_intervention_timeline(
+            event_summary=event_summary,
+            current_sentiment=current_sentiment,
+            time_range=time_range,
+            intervention_type=intervention_type,
+            intervention_description=intervention_description,
+            intervention_day=intervention_day,
+            original_timeline=original_timeline,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"生成分叉时间线失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@prediction_bp.route("/strategy-compare", methods=["POST"])
+def strategy_compare():
+    """
+    多策略并排对比推演
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "current_sentiment": "负面",
+            "strategies": [
+                {"type": "official_statement", "description": "发布官方声明", "timing": 2},
+                {"type": "kol_guidance", "description": "邀请KOL发声", "timing": 3}
+            ],
+            "original_timeline": [...]
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "comparisons": [{strategy_name, timeline, heat_change, sentiment_change, risk_level, score, analysis, pros, cons}],
+                "recommendation": "..."
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        current_sentiment = data.get("current_sentiment", "中性")
+        strategies = data.get("strategies", [])
+        original_timeline = data.get("original_timeline", [])
+
+        if not event_summary or not strategies:
+            return jsonify({"success": False, "error": "请提供事件摘要和策略列表"}), 400
+
+        if not original_timeline:
+            return jsonify({"success": False, "error": "请提供原始预测时间线"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_strategy_comparison(
+            event_summary=event_summary,
+            current_sentiment=current_sentiment,
+            strategies=strategies,
+            original_timeline=original_timeline,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"策略对比失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@prediction_bp.route("/intervention-heatmap", methods=["POST"])
+def generate_intervention_heatmap():
+    """
+    生成干预时机热力图
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "current_sentiment": "负面",
+            "time_range": 7,
+            "intervention_types": ["official_statement", "kol_guidance", ...],
+            "original_timeline": [...]
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "heatmap": [{type, type_name, scores: [{day, score, effectiveness, risk_note}]}]
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        current_sentiment = data.get("current_sentiment", "中性")
+        time_range = data.get("time_range", 7)
+        intervention_types = data.get("intervention_types", [
+            "official_statement", "kol_guidance", "cold_treatment", "data_disclosure"
+        ])
+        original_timeline = data.get("original_timeline", [])
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        if not original_timeline:
+            return jsonify({"success": False, "error": "请提供原始预测时间线"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_intervention_heatmap(
+            event_summary=event_summary,
+            current_sentiment=current_sentiment,
+            time_range=time_range,
+            intervention_types=intervention_types,
+            original_timeline=original_timeline,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"生成热力图失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@prediction_bp.route("/cascade-effect", methods=["POST"])
+def generate_cascade_effect():
+    """
+    生成链式反应推演
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "intervention_type": "official_statement",
+            "intervention_description": "发布官方声明",
+            "simulation_data": {...}
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "layers": [{level, description, affected_count, sentiment_shift, key_agents}],
+                "total_reach": 216,
+                "cascade_speed": "...",
+                "analysis": "..."
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        intervention_type = data.get("intervention_type", "official_statement")
+        intervention_description = data.get("intervention_description", "")
+        simulation_data = data.get("simulation_data", {})
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_cascade_effect(
+            event_summary=event_summary,
+            intervention_type=intervention_type,
+            intervention_description=intervention_description,
+            simulation_data=simulation_data,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"生成链式反应失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@prediction_bp.route("/counterfactual", methods=["POST"])
+def generate_counterfactual():
+    """
+    反事实推演
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "current_sentiment": "负面",
+            "original_timeline": [...],
+            "removed_event_day": 3,
+            "removed_event_desc": "某KOL发布负面评论引爆舆论"
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "counterfactual_timeline": [...],
+                "impact_score": 35,
+                "impact_description": "...",
+                "analysis": "...",
+                "key_difference": "..."
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        current_sentiment = data.get("current_sentiment", "中性")
+        original_timeline = data.get("original_timeline", [])
+        removed_event_day = data.get("removed_event_day", 3)
+        removed_event_desc = data.get("removed_event_desc", "")
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        if not original_timeline:
+            return jsonify({"success": False, "error": "请提供原始预测时间线"}), 400
+
+        if not removed_event_desc:
+            return jsonify({"success": False, "error": "请提供移除事件的描述"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_counterfactual(
+            event_summary=event_summary,
+            current_sentiment=current_sentiment,
+            original_timeline=original_timeline,
+            removed_event_day=removed_event_day,
+            removed_event_desc=removed_event_desc,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"反事实推演失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500
+
+
+@prediction_bp.route("/timeline-events", methods=["POST"])
+def generate_timeline_events():
+    """
+    基于LLM生成舆情时间线事件描述
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "current_sentiment": "负面",
+            "time_range": 7,
+            "scenarios": [...]
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "events": [{day, event, risk_hint}],
+                "overall_trend": "...",
+                "key_turning_point": "..."
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        current_sentiment = data.get("current_sentiment", "中性")
+        time_range = data.get("time_range", 7)
+        scenarios = data.get("scenarios", [])
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_timeline_events(
+            event_summary=event_summary,
+            current_sentiment=current_sentiment,
+            time_range=time_range,
+            scenarios=scenarios,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"生成时间线事件失败: {str(e)}")
         return jsonify(
             {"success": False, "error": str(e), "traceback": traceback.format_exc()}
         ), 500

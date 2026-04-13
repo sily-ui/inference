@@ -171,3 +171,131 @@ export function getAgentLogs(predictionId) {
     method: 'get'
   })
 }
+
+// ============================================================
+// 蝴蝶效应沙盒 - 干预推演API
+// ============================================================
+
+/**
+ * 生成干预动作卡片
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {Array} data.scenarios - 预测情景列表
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {Array} data.warnings - 预警节点
+ * @returns {Promise<Object>} 干预卡片列表
+ */
+export function generateInterventionCards(data) {
+  return service({
+    url: '/api/prediction/intervention-cards',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 生成分叉时间线
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {number} data.time_range - 预测天数
+ * @param {string} data.intervention_type - 干预类型
+ * @param {string} data.intervention_description - 干预描述
+ * @param {number} data.intervention_day - 干预执行时间（第几天）
+ * @param {Array} data.original_timeline - 原始预测时间线
+ * @returns {Promise<Object>} 分叉时间线和对比数据
+ */
+export function generateInterventionTimeline(data) {
+  return service({
+    url: '/api/prediction/intervention-timeline',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 多策略并排对比推演
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {Array} data.strategies - 策略列表 [{type, description, timing}]
+ * @param {Array} data.original_timeline - 原始预测时间线
+ * @returns {Promise<Object>} 策略对比结果
+ */
+export function strategyCompare(data) {
+  return service({
+    url: '/api/prediction/strategy-compare',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 生成干预时机热力图
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {number} data.time_range - 预测天数
+ * @param {Array} data.intervention_types - 干预类型列表
+ * @param {Array} data.original_timeline - 原始预测时间线
+ * @returns {Promise<Object>} 热力图数据
+ */
+export function generateInterventionHeatmap(data) {
+  return service({
+    url: '/api/prediction/intervention-heatmap',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 生成链式反应推演
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.intervention_type - 干预类型
+ * @param {string} data.intervention_description - 干预描述
+ * @param {Object} data.simulation_data - 模拟数据
+ * @returns {Promise<Object>} 链式反应数据
+ */
+export function generateCascadeEffect(data) {
+  return service({
+    url: '/api/prediction/cascade-effect',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 反事实推演
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {Array} data.original_timeline - 原始预测时间线
+ * @param {number} data.removed_event_day - 移除事件的天数
+ * @param {string} data.removed_event_desc - 移除事件的描述
+ * @returns {Promise<Object>} 反事实推演结果
+ */
+export function generateCounterfactual(data) {
+  return service({
+    url: '/api/prediction/counterfactual',
+    method: 'post',
+    data
+  })
+}
+
+/**
+ * 基于LLM生成舆情时间线事件描述
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {number} data.time_range - 预测天数
+ * @param {Array} data.scenarios - 预测情景列表（可选）
+ * @returns {Promise<Object>} 时间线事件数据
+ */
+export function generateTimelineEvents(data) {
+  return service({
+    url: '/api/prediction/timeline-events',
+    method: 'post',
+    data
+  })
+}

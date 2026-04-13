@@ -61,171 +61,9 @@
       </div>
     </div>
 
-    <!-- 主内容区 - 左右分栏布局 -->
+    <!-- 主内容区 -->
     <div class="prediction-content" v-else-if="predictionData">
-      <!-- 左侧栏 -->
-      <div class="left-column">
-        <!-- 情景概率分布 -->
-        <div class="scenario-list-section">
-          <h4 class="section-title">情景概率分布</h4>
-          <div class="scenario-list">
-            <div
-              v-for="(scenario, idx) in predictionData.scenarios"
-              :key="idx"
-              class="scenario-list-item"
-              :class="`risk-${scenario.risk_level}`"
-            >
-              <div class="scenario-header">
-                <span class="scenario-name">{{ scenario.name }}</span>
-                <span class="scenario-probability">{{ scenario.probability }}%</span>
-              </div>
-              <p class="scenario-description">{{ scenario.description || '暂无描述' }}</p>
-              <div class="scenario-keywords" v-if="scenario.keywords && scenario.keywords.length > 0">
-                <span v-for="kw in scenario.keywords.slice(0, 4)" :key="kw" class="keyword-tag">{{ kw }}</span>
-              </div>
-              <div class="scenario-insight" v-if="scenario.insight">
-                <span class="insight-label">💡</span>
-                <span class="insight-text">{{ scenario.insight }}</span>
-              </div>
-              <div class="scenario-progress-bg">
-                <div
-                  class="scenario-progress-fill"
-                  :class="scenario.risk_level"
-                  :style="{ width: scenario.probability + '%' }"
-                ></div>
-              </div>
-              <div class="scenario-meta">
-                <div class="scenario-risk-tag" :class="scenario.risk_level">
-                  {{ scenario.risk_level === 'high' ? '高风险' : scenario.risk_level === 'medium' ? '中风险' : '低风险' }}
-                </div>
-                <div class="scenario-timeline" v-if="scenario.timeline">
-                  <span class="timeline-icon">⏱</span>
-                  <span>{{ scenario.timeline }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 风险评估雷达图 -->
-        <div class="radar-section">
-          <h4 class="section-title">风险评估雷达</h4>
-          <div class="radar-chart">
-            <div class="radar-container">
-              <svg viewBox="0 0 200 200" class="radar-svg">
-                <!-- 背景网格 -->
-                <polygon
-                  v-for="n in 5"
-                  :key="n"
-                  :points="getRadarGridPoints(n)"
-                  class="radar-grid"
-                />
-                <!-- 轴线 -->
-                <line
-                  v-for="(axis, idx) in radarAxes"
-                  :key="idx"
-                  :x1="100"
-                  :y1="100"
-                  :x2="axis.x"
-                  :y2="axis.y"
-                  class="radar-axis"
-                />
-                <!-- 数据区域 -->
-                <polygon
-                  :points="radarDataPoints"
-                  class="radar-area"
-                />
-                <!-- 数据点 -->
-                <circle
-                  v-for="(point, idx) in radarData"
-                  :key="idx"
-                  :cx="point.x"
-                  :cy="point.y"
-                  r="4"
-                  class="radar-point"
-                />
-              </svg>
-              <!-- 标签 -->
-              <div class="radar-labels">
-                <span v-for="(label, idx) in radarLabels" :key="idx" :style="label.style">{{ label.text }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 右侧栏 -->
-      <div class="right-column">
-        <!-- 合并图表：轮次热度趋势 + 多维趋势分析 -->
-        <div class="merged-trend-section">
-          <div class="section-header-row">
-            <h4 class="section-title">舆情趋势分析</h4>
-            <div class="risk-legend">
-              <span class="legend-item high"><span class="dot"></span>高风险</span>
-              <span class="legend-item medium"><span class="dot"></span>中风险</span>
-              <span class="legend-item low"><span class="dot"></span>低风险</span>
-            </div>
-          </div>
-          <div class="heat-line-chart-container">
-            <div class="heat-line-chart">
-              <svg viewBox="0 0 700 200" class="heat-line-svg">
-                <line v-for="n in 5" :key="'h'+n" x1="50" :y1="n * 35" x2="670" :y2="n * 35" class="grid-line-light" />
-                <line v-for="n in mergedChartData.length" :key="'v'+n" :x1="50 + (n-1) * (620 / Math.max(mergedChartData.length - 1, 1))" y1="10" :x2="50 + (n-1) * (620 / Math.max(mergedChartData.length - 1, 1))" y2="175" class="grid-line-light" />
-
-                <text x="35" y="20" class="axis-label">100</text>
-                <text x="40" y="90" class="axis-label">50</text>
-                <text x="40" y="170" class="axis-label">0</text>
-
-                <polygon :points="mergedHeatAreaPoints" fill="url(#mergedHeatGradient)" class="heat-area" />
-                <polygon :points="mergedSentimentAreaPoints" fill="url(#mergedSentimentGradient)" class="sentiment-area" />
-
-                <polyline :points="mergedHeatLinePoints" class="heat-trend-line" fill="none" />
-                <polyline :points="mergedSentimentLinePoints" class="sentiment-trend-line" fill="none" />
-
-                <circle v-for="(point, idx) in mergedChartPoints.heat" :key="'heat'+idx" :cx="point.x" :cy="point.y" r="5" class="heat-data-point" :class="[point.risk, { 'no-data': !point.hasData && point.heat === 0 }]" />
-                <circle v-for="(point, idx) in mergedChartPoints.sentiment" :key="'sent'+idx" :cx="point.x" :cy="point.y" r="4" class="sentiment-data-point" />
-
-                <text v-for="(group, idx) in mergedChartData" :key="'label'+idx" :x="50 + idx * (620 / Math.max(mergedChartData.length - 1, 1))" y="195" class="x-axis-label" text-anchor="middle">{{ group.label }}</text>
-
-                <defs>
-                  <linearGradient id="mergedHeatGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.4" />
-                    <stop offset="100%" style="stop-color:#ef4444;stop-opacity:0.05" />
-                  </linearGradient>
-                  <linearGradient id="mergedSentimentGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.35" />
-                    <stop offset="100%" style="stop-color:#10b981;stop-opacity:0.05" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <div class="heat-chart-legend">
-              <span class="legend-item">🔥 热度指数</span>
-              <span class="legend-item">💚 情绪指数</span>
-              <span class="legend-item">{{ (simulationRunData?.all_actions?.length || roundHeatData.length) }} 条模拟数据</span>
-            </div>
-          </div>
-          <div class="merged-stats-row" v-if="groupedRoundData.length > 0">
-            <div class="heat-stat-item">
-              <span class="stat-label">峰值轮次</span>
-              <span class="stat-value">R{{ peakRoundRange }}</span>
-            </div>
-            <div class="heat-stat-item">
-              <span class="stat-label">平均热度</span>
-              <span class="stat-value">{{ avgGroupedHeat }}%</span>
-            </div>
-            <div class="heat-stat-item">
-              <span class="stat-label">当前阶段</span>
-              <span class="stat-value" :class="currentGroupRisk">{{ currentGroupRiskText }}</span>
-            </div>
-            <div class="heat-stat-item">
-              <span class="stat-label">风险节点</span>
-              <span class="stat-value warning">{{ predictionData.stats?.riskNodes || 2 }}个</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 预测结论 -->
+      <!-- 预测结论 -->
         <div class="conclusion-section">
           <h4 class="section-title">预测结论</h4>
           <div class="conclusion-content">
@@ -236,51 +74,323 @@
           </div>
         </div>
 
-        <!-- 干预策略模拟 -->
-        <div class="intervention-section">
-          <h4 class="section-title">干预策略模拟</h4>
-          <div class="intervention-input-area">
-            <textarea
-              v-model="interventionText"
-              class="intervention-textarea"
-              placeholder="输入干预策略，例如：发布官方声明澄清事实..."
-              rows="2"
-            ></textarea>
-            <button
-              class="btn-simulate"
-              :disabled="isSimulating || !interventionText.trim()"
-              @click="simulateIntervention"
-            >
-              <span v-if="isSimulating" class="spinner"></span>
-              <span v-else>🚀 模拟效果</span>
-            </button>
-          </div>
+        <!-- 🦋 蝴蝶效应沙盒 -->
+        <div class="sandbox-section">
+          <h4 class="section-title">🦋 蝴蝶效应沙盒</h4>
+          <p class="sandbox-subtitle">选择干预策略，观察蝴蝶效应如何改变舆情走向</p>
 
-          <!-- 干预结果 -->
-          <div class="intervention-result" v-if="interventionResult">
-            <div class="result-metrics">
-              <div class="result-metric">
-                <span class="metric-label">热度变化</span>
-                <span class="metric-value" :class="interventionResult.heat_change > 0 ? 'up' : 'down'">
-                  {{ interventionResult.heat_change > 0 ? '+' : '' }}{{ interventionResult.heat_change }}%
-                </span>
-              </div>
-              <div class="result-metric">
-                <span class="metric-label">情绪变化</span>
-                <span class="metric-value" :class="interventionResult.sentiment_change > 0 ? 'up' : 'down'">
-                  {{ interventionResult.sentiment_change > 0 ? '+' : '' }}{{ interventionResult.sentiment_change }}%
-                </span>
-              </div>
-              <div class="result-metric">
-                <span class="metric-label">推荐指数</span>
-                <span class="metric-value stars">
-                  {{ '★'.repeat(interventionResult.recommendation || 3) }}
-                </span>
+          <!-- 干预动作卡片池 -->
+          <div class="card-pool" v-if="interventionCards.length > 0">
+            <div
+              v-for="card in interventionCards"
+              :key="card.id"
+              class="intervention-card"
+              :class="{ selected: selectedCard?.id === card.id }"
+              @click="selectInterventionCard(card)"
+            >
+              <div class="card-icon">{{ card.icon }}</div>
+              <div class="card-body">
+                <div class="card-name">{{ card.name }}</div>
+                <div class="card-desc">{{ card.description }}</div>
+                <div class="card-effect">{{ card.estimated_effect }}</div>
               </div>
             </div>
-            <div class="result-analysis">
-              <h5>策略分析</h5>
-              <p>{{ interventionResult.analysis || interventionResult.expected_effect || '暂无分析' }}</p>
+          </div>
+          <div class="card-pool-loading" v-else-if="isLoadingCards">
+            <span class="spinner-sm"></span>
+            <span>正在生成干预策略卡片...</span>
+          </div>
+          <div class="card-pool-empty" v-else>
+            <span class="empty-icon">📭</span>
+            <span class="empty-text">干预卡片加载失败</span>
+            <button class="btn-retry" @click="retryLoadCards">🔄 重新生成</button>
+          </div>
+
+          <!-- 分叉时间线控制区 -->
+          <div class="branch-controls" v-if="selectedCard">
+            <div class="control-row">
+              <div class="control-group">
+                <label>干预策略</label>
+                <span class="control-value">{{ selectedCard.name }}</span>
+              </div>
+              <div class="control-group">
+                <label>执行时间</label>
+                <select v-model="interventionDay" class="day-select">
+                  <option v-for="d in timeRange" :key="d" :value="d">第{{ d }}天</option>
+                </select>
+              </div>
+              <button
+                class="btn-branch"
+                :disabled="isBranching"
+                @click="generateBranchTimeline"
+              >
+                <span v-if="isBranching" class="spinner-sm"></span>
+                <span v-else>🚀 生成分叉时间线</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 分叉时间线图表 -->
+          <div class="branch-chart-container" v-if="branchTimeline.length > 0">
+            <div class="branch-chart-header">
+              <span class="branch-legend original">── 原始预测</span>
+              <span class="branch-legend branch">- - 干预后预测</span>
+            </div>
+            <div class="branch-chart">
+              <svg viewBox="0 0 700 220" class="branch-svg">
+                <line v-for="n in 5" :key="'bh'+n" x1="50" :y1="n * 38" x2="670" :y2="n * 38" class="grid-line-light" />
+                <text x="35" y="25" class="axis-label">100</text>
+                <text x="40" y="110" class="axis-label">50</text>
+                <text x="40" y="195" class="axis-label">0</text>
+
+                <polygon :points="originalHeatAreaPoints" fill="url(#origGrad)" class="heat-area" />
+                <polygon :points="branchHeatAreaPoints" fill="url(#branchGrad)" class="sentiment-area" />
+
+                <polyline :points="originalHeatLinePoints" class="original-line" fill="none" />
+                <polyline :points="branchHeatLinePoints" class="branch-line" fill="none" />
+
+                <circle v-for="(pt, idx) in originalChartPoints" :key="'op'+idx" :cx="pt.x" :cy="pt.y" r="4" class="original-point" />
+                <circle v-for="(pt, idx) in branchChartPoints" :key="'bp'+idx" :cx="pt.x" :cy="pt.y" r="4" class="branch-point" />
+
+                <line v-if="interventionDay > 0"
+                  :x1="getInterventionX" y1="10"
+                  :x2="getInterventionX" y2="195"
+                  class="intervention-line"
+                />
+                <text v-if="interventionDay > 0"
+                  :x="getInterventionX" y="8"
+                  class="intervention-label"
+                  text-anchor="middle"
+                >↓ 干预</text>
+
+                <text v-for="(d, idx) in originalTimeline" :key="'bl'+idx"
+                  :x="50 + idx * (620 / Math.max(originalTimeline.length - 1, 1))"
+                  y="215" class="x-axis-label" text-anchor="middle"
+                >D{{ d.day }}</text>
+
+                <defs>
+                  <linearGradient id="origGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:0.02" />
+                  </linearGradient>
+                  <linearGradient id="branchGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:0.3" />
+                    <stop offset="100%" style="stop-color:#f59e0b;stop-opacity:0.02" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+
+            <!-- 分叉对比指标 -->
+            <div class="branch-comparison" v-if="branchComparison">
+              <div class="comparison-item">
+                <span class="comp-label">峰值热度变化</span>
+                <span class="comp-value" :class="branchComparison.peak_heat_change > 0 ? 'up' : 'down'">
+                  {{ branchComparison.peak_heat_change > 0 ? '+' : '' }}{{ branchComparison.peak_heat_change }}
+                </span>
+              </div>
+              <div class="comparison-item">
+                <span class="comp-label">情绪改善</span>
+                <span class="comp-value" :class="branchComparison.avg_sentiment_change > 0 ? 'down' : 'up'">
+                  {{ branchComparison.avg_sentiment_change > 0 ? '+' : '' }}{{ branchComparison.avg_sentiment_change }}
+                </span>
+              </div>
+              <div class="comparison-item">
+                <span class="comp-label">风险降级</span>
+                <span class="comp-value">{{ branchComparison.risk_reduction }}</span>
+              </div>
+              <div class="comparison-item">
+                <span class="comp-label">恢复加速</span>
+                <span class="comp-value down">{{ branchComparison.recovery_speedup_days }}天</span>
+              </div>
+            </div>
+            <div class="branch-analysis" v-if="branchAnalysis">
+              <p>{{ branchAnalysis }}</p>
+            </div>
+          </div>
+
+          <!-- 策略竞技场 + 时机热力图 -->
+          <div class="sandbox-grid">
+            <!-- 策略竞技场 -->
+            <div class="arena-section">
+              <h5 class="sub-title">🏟️ 策略竞技场</h5>
+              <button
+                class="btn-arena"
+                :disabled="isComparing"
+                @click="runStrategyCompare"
+              >
+                <span v-if="isComparing" class="spinner-sm"></span>
+                <span v-else>⚔️ 启动策略对比</span>
+              </button>
+              <div class="arena-results" v-if="strategyComparisons.length > 0">
+                <div
+                  v-for="(comp, idx) in strategyComparisons"
+                  :key="idx"
+                  class="arena-card"
+                  :class="{ best: comp.score === Math.max(...strategyComparisons.map(c => c.score)) }"
+                >
+                  <div class="arena-card-header">
+                    <span class="arena-rank">#{{ idx + 1 }}</span>
+                    <span class="arena-name">{{ comp.strategy_name }}</span>
+                    <span class="arena-score">{{ comp.score }}分</span>
+                  </div>
+                  <div class="arena-metrics">
+                    <div class="arena-metric">
+                      <span class="am-label">热度</span>
+                      <span class="am-value" :class="comp.heat_change > 0 ? 'up' : 'down'">{{ comp.heat_change > 0 ? '+' : '' }}{{ comp.heat_change }}%</span>
+                    </div>
+                    <div class="arena-metric">
+                      <span class="am-label">情绪</span>
+                      <span class="am-value" :class="comp.sentiment_change > 0 ? 'down' : 'up'">{{ comp.sentiment_change > 0 ? '+' : '' }}{{ comp.sentiment_change }}</span>
+                    </div>
+                    <div class="arena-metric">
+                      <span class="am-label">风险</span>
+                      <span class="am-value">{{ comp.risk_level === 'low' ? '低' : comp.risk_level === 'medium' ? '中' : '高' }}</span>
+                    </div>
+                  </div>
+                  <p class="arena-analysis">{{ comp.analysis }}</p>
+                </div>
+              </div>
+              <div class="arena-recommendation" v-if="strategyRecommendation">
+                <span class="rec-icon">💡</span>
+                <span>{{ strategyRecommendation }}</span>
+              </div>
+            </div>
+
+            <!-- 时机热力图 -->
+            <div class="heatmap-section">
+              <h5 class="sub-title">🗺️ 干预时机热力图</h5>
+              <p class="heatmap-hint">颜色越绿表示干预效果越好，点击单元格查看详情</p>
+              <button
+                class="btn-heatmap"
+                :disabled="isGeneratingHeatmap"
+                @click="runHeatmapGeneration"
+              >
+                <span v-if="isGeneratingHeatmap" class="spinner-sm"></span>
+                <span v-else>🗺️ 生成热力图</span>
+              </button>
+              <div class="heatmap-container" v-if="heatmapData.length > 0">
+                <div class="heatmap-legend">
+                  <span class="legend-label">效果评分</span>
+                  <div class="legend-scale">
+                    <span class="legend-item"><span class="color-box" style="background: #22c55e"></span>极佳</span>
+                    <span class="legend-item"><span class="color-box" style="background: #84cc16"></span>良好</span>
+                    <span class="legend-item"><span class="color-box" style="background: #eab308"></span>一般</span>
+                    <span class="legend-item"><span class="color-box" style="background: #f97316"></span>较差</span>
+                    <span class="legend-item"><span class="color-box" style="background: #ef4444"></span>危险</span>
+                  </div>
+                </div>
+                <div class="heatmap-grid">
+                  <div class="heatmap-row heatmap-header-row">
+                    <div class="heatmap-cell header-cell">干预类型</div>
+                    <div v-for="day in heatmapDays" :key="'hd'+day" class="heatmap-cell header-cell">Day {{ day }}</div>
+                  </div>
+                  <div v-for="row in heatmapData" :key="row.type" class="heatmap-row">
+                    <div class="heatmap-cell type-cell">{{ row.type_name }}</div>
+                    <div
+                      v-for="score in row.scores"
+                      :key="score.day"
+                      class="heatmap-cell score-cell"
+                      :class="getHeatmapClass(score.score)"
+                      :title="`${row.type_name} Day${score.day}: ${score.score}分\n${score.effectiveness || ''}\n${score.risk_note || ''}`"
+                    >
+                      <span class="score-value">{{ score.score }}</span>
+                      <span class="score-label">{{ score.effectiveness }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 链式反应 + 反事实推演 -->
+          <div class="sandbox-grid">
+            <!-- 链式反应 -->
+          <div class="cascade-section">
+            <h5 class="sub-title">🌊 链式反应</h5>
+            <button
+              class="btn-cascade"
+              :disabled="isGeneratingCascade || !selectedCard"
+              @click="runCascadeEffect"
+            >
+              <span v-if="isGeneratingCascade" class="spinner-sm"></span>
+              <span v-else>🌊 推演链式反应</span>
+            </button>
+            <div class="cascade-container" v-if="cascadeLayers.length > 0">
+              <div class="cascade-flow">
+                <div 
+                  v-for="(layer, index) in cascadeLayers" 
+                  :key="layer.level" 
+                  class="cascade-layer"
+                  :class="{ 'last-layer': index === cascadeLayers.length - 1 }"
+                >
+                  <div class="layer-content">
+                    <div class="layer-header">
+                      <div class="layer-level">L{{ layer.level }}</div>
+                      <div class="layer-title">{{ layer.description }}</div>
+                    </div>
+                    <div class="layer-stats">
+                      <span class="stat-item">👥 {{ layer.affected_count }}人</span>
+                      <span class="stat-item sentiment-shift" :class="layer.sentiment_shift >= 0 ? 'positive' : 'negative'">
+                        💭 {{ layer.sentiment_shift > 0 ? '+' : '' }}{{ layer.sentiment_shift }}
+                      </span>
+                    </div>
+                    <div class="layer-agents" v-if="layer.key_agents && layer.key_agents.length > 0">
+                      <span 
+                        v-for="agent in layer.key_agents" 
+                        :key="agent.name" 
+                        class="agent-tag"
+                        :class="agent.influence"
+                      >
+                        {{ agent.name }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="layer-connector" v-if="index < cascadeLayers.length - 1"></div>
+                </div>
+              </div>
+              <div class="cascade-summary" v-if="cascadeTotalReach > 0">
+                <div class="summary-item">
+                  <span class="summary-label">总触达:</span>
+                  <span class="summary-value">{{ cascadeTotalReach }}人</span>
+                </div>
+                <div class="summary-item">
+                  <span class="summary-label">传播速度:</span>
+                  <span class="summary-value">{{ cascadeSpeed }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+            <!-- 反事实推演 -->
+            <div class="counterfactual-section">
+              <h5 class="sub-title">🔮 反事实推演</h5>
+              <p class="cf-hint">"如果某个事件没有发生，舆情会如何发展？"</p>
+              <div class="cf-controls">
+                <select v-model="cfRemovedDay" class="cf-select">
+                  <option value="">选择要移除的事件节点</option>
+                  <option v-for="node in removableEvents" :key="node.day" :value="node.day">
+                    D{{ node.day }}: {{ node.event }}
+                  </option>
+                </select>
+                <button
+                  class="btn-cf"
+                  :disabled="isGeneratingCF || !cfRemovedDay"
+                  @click="runCounterfactual"
+                >
+                  <span v-if="isGeneratingCF" class="spinner-sm"></span>
+                  <span v-else>🔮 推演</span>
+                </button>
+              </div>
+              <div class="cf-result" v-if="cfResult">
+                <div class="cf-impact">
+                  <span class="cf-impact-label">事件影响力</span>
+                  <span class="cf-impact-value">{{ cfResult.impact_score }}%</span>
+                </div>
+                <p class="cf-desc">{{ cfResult.impact_description }}</p>
+                <p class="cf-diff">{{ cfResult.key_difference }}</p>
+                <p class="cf-analysis">{{ cfResult.analysis }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -345,13 +455,12 @@
         </div>
       </div>
     </div>
-  </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { marked } from 'marked'
-import { predictPublicOpinion, simulateIntervention as apiSimulateIntervention, chatAboutPrediction, generateRecommendedQuestions, agentPredict } from '../api/prediction.js'
+import { predictPublicOpinion, simulateIntervention as apiSimulateIntervention, chatAboutPrediction, generateRecommendedQuestions, agentPredict, generateInterventionCards, generateInterventionTimeline, strategyCompare, generateInterventionHeatmap, generateCascadeEffect, generateCounterfactual, generateTimelineEvents } from '../api/prediction.js'
 import { searchWithTavily } from '../api/tavily.js'
 import { getRunStatusDetail } from '../api/simulation.js'
 import { getReport } from '../api/report.js'
@@ -395,6 +504,28 @@ const chatInput = ref('')
 const interventionText = ref('')
 const selectedIntervention = ref('')
 
+// 🦋 蝴蝶效应沙盒状态
+const interventionCards = ref([])
+const selectedCard = ref(null)
+const isLoadingCards = ref(false)
+const interventionDay = ref(1)
+const isBranching = ref(false)
+const branchTimeline = ref([])
+const branchComparison = ref(null)
+const branchAnalysis = ref('')
+const isComparing = ref(false)
+const strategyComparisons = ref([])
+const strategyRecommendation = ref('')
+const isGeneratingHeatmap = ref(false)
+const heatmapData = ref([])
+const isGeneratingCascade = ref(false)
+const cascadeLayers = ref([])
+const cascadeTotalReach = ref(0)
+const cascadeSpeed = ref('')
+const isGeneratingCF = ref(false)
+const cfRemovedDay = ref('')
+const cfResult = ref(null)
+
 // 真实数据存储
 const simulationRunData = ref(null)
 const reportData = ref(null)
@@ -416,6 +547,10 @@ const sentimentDistribution = ref([
   { type: 'negative', label: '负面', percentage: 30, count: 0 },
   { type: 'complex', label: '复杂', percentage: 10, count: 0 }
 ])
+
+// LLM生成的timeline事件
+const llmTimelineEvents = ref([])
+const isLoadingTimelineEvents = ref(false)
 
 // 计算属性
 const sentimentClass = computed(() => {
@@ -797,6 +932,97 @@ const radarDataPoints = computed(() => {
   return radarData.value.map(p => `${p.x},${p.y}`).join(' ')
 })
 
+// ============================================
+// 🦋 蝴蝶效应沙盒计算属性
+// ============================================
+
+const originalTimeline = computed(() => {
+  return predictionData.value?.timeline || []
+})
+
+const originalChartPoints = computed(() => {
+  const tl = originalTimeline.value
+  if (tl.length === 0) return []
+  const step = 620 / Math.max(tl.length - 1, 1)
+  return tl.map((t, i) => ({
+    x: 50 + i * step,
+    y: 190 - (t.heat / 100) * 180
+  }))
+})
+
+const originalHeatLinePoints = computed(() => {
+  return originalChartPoints.value.map(p => `${p.x},${p.y}`).join(' ')
+})
+
+const originalHeatAreaPoints = computed(() => {
+  const pts = originalChartPoints.value
+  if (pts.length === 0) return ''
+  const first = pts[0]
+  const last = pts[pts.length - 1]
+  return `${first.x},190 ` + pts.map(p => `${p.x},${p.y}`).join(' ') + ` ${last.x},190`
+})
+
+const branchChartPoints = computed(() => {
+  const tl = branchTimeline.value
+  if (tl.length === 0) return []
+  const step = 620 / Math.max(tl.length - 1, 1)
+  return tl.map((t, i) => ({
+    x: 50 + i * step,
+    y: 190 - (t.heat / 100) * 180
+  }))
+})
+
+const branchHeatLinePoints = computed(() => {
+  return branchChartPoints.value.map(p => `${p.x},${p.y}`).join(' ')
+})
+
+const branchHeatAreaPoints = computed(() => {
+  const pts = branchChartPoints.value
+  if (pts.length === 0) return ''
+  const first = pts[0]
+  const last = pts[pts.length - 1]
+  return `${first.x},190 ` + pts.map(p => `${p.x},${p.y}`).join(' ') + ` ${last.x},190`
+})
+
+const getInterventionX = computed(() => {
+  const tl = originalTimeline.value
+  if (tl.length === 0 || interventionDay.value <= 0) return 50
+  const step = 620 / Math.max(tl.length - 1, 1)
+  const idx = tl.findIndex(t => t.day >= interventionDay.value)
+  if (idx < 0) return 50 + (tl.length - 1) * step
+  return 50 + idx * step
+})
+
+const heatmapDays = computed(() => {
+  if (heatmapData.value.length === 0 || heatmapData.value[0]?.scores?.length === 0) return []
+  return heatmapData.value[0].scores.map(s => s.day)
+})
+
+const removableEvents = computed(() => {
+  const tl = originalTimeline.value
+  if (!tl || tl.length === 0) return []
+  return tl.map(t => ({
+    ...t,
+    event: t.event || `第${t.day}天舆情节点`
+  }))
+})
+
+const getHeatmapColor = (score) => {
+  if (score >= 80) return '#22c55e'
+  if (score >= 60) return '#84cc16'
+  if (score >= 40) return '#eab308'
+  if (score >= 20) return '#f97316'
+  return '#ef4444'
+}
+
+const getHeatmapClass = (score) => {
+  if (score >= 80) return 'excellent'
+  if (score >= 60) return 'good'
+  if (score >= 40) return 'average'
+  if (score >= 20) return 'poor'
+  return 'danger'
+}
+
 const getRadarGridPoints = (level) => {
   const radius = (level / 5) * 80
   const angles = [0, 72, 144, 216, 288].map(a => (a - 90) * Math.PI / 180)
@@ -929,6 +1155,29 @@ watch(() => props.simulationConfig, async (newConfig) => {
   }
 }, { immediate: true })
 
+// 监听 simulationId 变化，重新获取模拟数据
+watch(
+  () => props.simulationId,
+  async (newSimulationId) => {
+    if (newSimulationId) {
+      try {
+        const runRes = await getRunStatusDetail(newSimulationId)
+        if (runRes.success && runRes.data) {
+          simulationRunData.value = runRes.data
+          calculateRoundHeatData(runRes.data.all_actions || [])
+          emit('add-log', `已加载模拟运行数据: ${runRes.data.all_actions?.length || 0}条动作`)
+          // 重新分析情绪分布
+          await analyzeSentimentFromRealData()
+        }
+      } catch (e) {
+        console.log('获取模拟运行数据失败:', e.message)
+        emit('add-log', `获取模拟运行数据失败: ${e.message}`)
+      }
+    }
+  },
+  { immediate: false }
+)
+
 // 自动初始化数据 - 基于前四步真实数据（直接生成预测结果，不显示加载状态）
 const autoInitialize = async () => {
   console.log('autoInitialize started')
@@ -1033,9 +1282,16 @@ const autoInitialize = async () => {
 
     // 直接生成预测数据，不显示加载状态
     console.log('Generating prediction data...')
+    
+    // 🦋 先加载LLM生成的时间线事件
+    await loadTimelineEvents()
+    
     predictionData.value = generateMockPredictionData()
     recommendedQuestions.value = generateDefaultQuestions()
     console.log('Prediction data generated:', predictionData.value)
+
+    // 🦋 加载干预策略卡片
+    loadInterventionCards()
 
   } catch (error) {
     console.error('初始化失败:', error)
@@ -1203,14 +1459,31 @@ const generateMockPredictionData = () => {
   const days = timeRange.value
   const heatData = roundHeatData.value
 
+  const timelineEvents = llmTimelineEvents.value.length > 0 
+    ? llmTimelineEvents.value 
+    : [
+        '事件初始发酵，社交媒体开始传播',
+        '话题热度上升，KOL参与讨论',
+        '主流媒体介入报道，舆论扩大',
+        '官方首次回应，公众情绪分化',
+        '讨论进入深水区，多方观点碰撞',
+        '舆情达到峰值，关注度高',
+        '话题开始降温，讨论趋于理性',
+        '舆论逐渐平息，进入长尾阶段'
+      ]
+
   if (heatData.length > 0) {
     heatData.forEach((round, idx) => {
       const day = Math.ceil((idx + 1) * days / heatData.length)
+      const eventIdx = Math.min(idx, timelineEvents.length - 1)
+      const eventText = timelineEvents[eventIdx]?.event || timelineEvents[eventIdx] || `第${round.round}轮模拟节点`
+      const riskHint = timelineEvents[eventIdx]?.risk_hint || ''
+      const riskText = round.risk === 'high' ? '【高风险】' : round.risk === 'medium' ? '【中风险】' : ''
       timeline.push({
         day,
         heat: round.heat,
         sentiment: (sentimentMap['positive'] || 30) / 100,
-        event: `第${round.round}轮模拟节点`,
+        event: riskHint ? `${riskHint} ${eventText}` : `${riskText}${eventText}`,
         risk: round.risk,
         actionCount: round.actionCount
       })
@@ -1220,11 +1493,15 @@ const generateMockPredictionData = () => {
       const day = i + 1
       const heat = Math.floor(40 + Math.sin(i * 0.8) * 30 + Math.random() * 20)
       const risk = heat > 75 ? 'high' : heat > 50 ? 'medium' : 'low'
+      const eventIdx = Math.min(i, timelineEvents.length - 1)
+      const eventText = timelineEvents[eventIdx]?.event || timelineEvents[eventIdx] || `第${day}天舆情发展节点`
+      const riskHint = timelineEvents[eventIdx]?.risk_hint || ''
+      const riskText = risk === 'high' ? '【高风险】' : risk === 'medium' ? '【中风险】' : ''
       timeline.push({
         day,
         heat,
         sentiment: positivePct / 100,
-        event: `第${day}天舆情发展节点`,
+        event: riskHint ? `${riskHint} ${eventText}` : `${riskText}${eventText}`,
         risk
       })
     }
@@ -1235,7 +1512,15 @@ const generateMockPredictionData = () => {
   const riskNodes = timeline.filter(t => t.risk === 'high').length
 
   const dominantScenario = scenarios[0]
-  const conclusion = `基于${simulationRunData.value?.all_actions?.length || 0}条真实模拟数据分析，预测"${dominantScenario.name}"最可能发生（${dominantScenario.probability}%），当前情绪以${currentSentiment.value}为主，需关注${riskNodes}个关键风险节点。`
+  const actionCount = simulationRunData.value?.all_actions?.length || 0
+  
+  let conclusion
+  if (actionCount > 0) {
+    conclusion = `基于${actionCount}条真实模拟数据分析，预测"${dominantScenario.name}"最可能发生（${dominantScenario.probability}%），当前情绪以${currentSentiment.value}为主，需关注${riskNodes}个关键风险节点。`
+  } else {
+    // 当没有真实模拟数据时，使用LLM生成更自然的结论
+    conclusion = `综合分析预测，"${dominantScenario.name}"情景最可能发生（${dominantScenario.probability}%），当前情绪以${currentSentiment.value}为主，存在${riskNodes}个关键风险节点需要重点关注。`
+  }
 
   const warnings = []
   const highRiskRounds = heatData.filter(r => r.risk === 'high')
@@ -1351,42 +1636,208 @@ const resetPrediction = () => {
 }
 
 // 模拟干预
-const simulateIntervention = async () => {
-  isSimulating.value = true
+// 🦋 蝴蝶效应沙盒方法
 
+const loadTimelineEvents = async () => {
+  if (!eventSummary.value) return
+  isLoadingTimelineEvents.value = true
   try {
-    emit('add-log', `模拟干预策略: ${interventionText.value.slice(0, 30)}...`)
-
-    const res = await apiSimulateIntervention({
-      event_summary: predictionData.value.event_summary,
-      intervention: interventionText.value,
-      current_sentiment: predictionData.value.current_sentiment
+    const res = await generateTimelineEvents({
+      event_summary: eventSummary.value,
+      current_sentiment: currentSentiment.value,
+      time_range: timeRange.value,
+      scenarios: predictionData.value?.scenarios || []
     })
-
-    if (res.success) {
-      interventionResult.value = res.data
-      emit('add-log', '干预策略模拟完成')
-    } else {
-      // 生成模拟结果
-      interventionResult.value = {
-        heat_change: Math.floor(Math.random() * 20) - 10,
-        sentiment_change: (Math.random() * 0.4 - 0.2).toFixed(1),
-        recommendation: Math.floor(Math.random() * 2) + 3,
-        expected_effect: `该策略将${interventionText.value.slice(0, 20)}...，预计短期内可能${Math.random() > 0.5 ? '分散' : '集中'}舆论焦点，长期效果取决于执行力度和公众接受度。`,
-        risk: '存在不确定性'
-      }
+    if (res.success && res.data?.events?.length > 0) {
+      llmTimelineEvents.value = res.data.events
+      emit('add-log', `已生成${res.data.events.length}个时间线事件节点`)
     }
   } catch (error) {
-    emit('add-log', `干预模拟异常: ${error.message}`)
-    interventionResult.value = {
-      heat_change: -15,
-      sentiment_change: 0.3,
-      recommendation: 4,
-      expected_effect: '该策略有助于缓解当前舆情压力，建议配合其他措施综合使用。',
-      risk: '低风险'
-    }
+    emit('add-log', `生成时间线事件失败: ${error.message}`)
   } finally {
-    isSimulating.value = false
+    isLoadingTimelineEvents.value = false
+  }
+}
+
+const loadInterventionCards = async () => {
+  if (!predictionData.value) return
+  isLoadingCards.value = true
+  try {
+    const res = await generateInterventionCards({
+      event_summary: predictionData.value.event_summary || eventSummary.value,
+      scenarios: predictionData.value.scenarios || [],
+      current_sentiment: predictionData.value.current_sentiment || currentSentiment.value,
+      warnings: predictionData.value.warnings || []
+    })
+    if (res.success && res.data?.cards?.length > 0) {
+      interventionCards.value = res.data.cards
+      emit('add-log', `已生成${res.data.cards.length}张干预策略卡片`)
+    } else {
+      emit('add-log', '干预卡片生成失败，请点击重试')
+      interventionCards.value = []
+    }
+  } catch (error) {
+    emit('add-log', `生成干预卡片失败: ${error.message}`)
+    interventionCards.value = []
+  } finally {
+    isLoadingCards.value = false
+  }
+}
+
+const retryLoadCards = () => {
+  loadInterventionCards()
+}
+
+const selectInterventionCard = (card) => {
+  selectedCard.value = selectedCard.value?.id === card.id ? null : card
+  branchTimeline.value = []
+  branchComparison.value = null
+  branchAnalysis.value = ''
+}
+
+const generateBranchTimeline = async () => {
+  if (!selectedCard.value) return
+  isBranching.value = true
+  try {
+    const res = await generateInterventionTimeline({
+      event_summary: predictionData.value.event_summary || eventSummary.value,
+      current_sentiment: predictionData.value.current_sentiment || currentSentiment.value,
+      time_range: timeRange.value,
+      intervention_type: selectedCard.value.type,
+      intervention_description: selectedCard.value.description,
+      intervention_day: interventionDay.value,
+      original_timeline: originalTimeline.value
+    })
+    if (res.success && res.data) {
+      branchTimeline.value = res.data.branch_timeline || []
+      branchComparison.value = res.data.comparison || null
+      branchAnalysis.value = res.data.analysis || ''
+      emit('add-log', `分叉时间线生成完成: ${selectedCard.value.name} @ 第${interventionDay.value}天`)
+    }
+  } catch (error) {
+    emit('add-log', `分叉时间线生成失败: ${error.message}`)
+    branchTimeline.value = []
+    branchComparison.value = null
+    branchAnalysis.value = ''
+  } finally {
+    isBranching.value = false
+  }
+}
+
+const runStrategyCompare = async () => {
+  if (!predictionData.value) return
+  if (interventionCards.value.length === 0) {
+    emit('add-log', '请先生成干预策略卡片')
+    return
+  }
+  isComparing.value = true
+  try {
+    const strategies = interventionCards.value.slice(0, 4).map(c => ({
+      type: c.type,
+      description: c.description,
+      timing: Math.ceil(timeRange.value / 3)
+    }))
+    const res = await strategyCompare({
+      event_summary: predictionData.value.event_summary || eventSummary.value,
+      current_sentiment: predictionData.value.current_sentiment || currentSentiment.value,
+      strategies,
+      original_timeline: originalTimeline.value
+    })
+    if (res.success && res.data) {
+      strategyComparisons.value = res.data.comparisons || []
+      strategyRecommendation.value = res.data.recommendation || ''
+      emit('add-log', '策略竞技场对比完成')
+    }
+  } catch (error) {
+    emit('add-log', `策略对比失败: ${error.message}`)
+    strategyComparisons.value = []
+    strategyRecommendation.value = ''
+  } finally {
+    isComparing.value = false
+  }
+}
+
+const runHeatmapGeneration = async () => {
+  if (!predictionData.value) return
+  if (interventionCards.value.length === 0) {
+    emit('add-log', '请先生成干预策略卡片')
+    return
+  }
+  isGeneratingHeatmap.value = true
+  try {
+    const interventionTypes = interventionCards.value.slice(0, 4).map(c => c.type)
+    const res = await generateInterventionHeatmap({
+      event_summary: predictionData.value.event_summary || eventSummary.value,
+      current_sentiment: predictionData.value.current_sentiment || currentSentiment.value,
+      time_range: timeRange.value,
+      intervention_types: interventionTypes,
+      original_timeline: originalTimeline.value
+    })
+    if (res.success && res.data?.heatmap) {
+      heatmapData.value = res.data.heatmap
+      emit('add-log', '干预时机热力图生成完成')
+    }
+  } catch (error) {
+    emit('add-log', `热力图生成失败: ${error.message}`)
+    heatmapData.value = []
+  } finally {
+    isGeneratingHeatmap.value = false
+  }
+}
+
+const runCascadeEffect = async () => {
+  if (!selectedCard.value) return
+  isGeneratingCascade.value = true
+  try {
+    const res = await generateCascadeEffect({
+      event_summary: predictionData.value.event_summary || eventSummary.value,
+      intervention_type: selectedCard.value.type,
+      intervention_description: selectedCard.value.description,
+      simulation_data: {
+        current_sentiment: predictionData.value.current_sentiment || currentSentiment.value,
+        time_range: timeRange.value,
+        agent_count: simulationRunData.value?.agent_count || 0,
+        all_actions: simulationRunData.value?.all_actions || []
+      }
+    })
+    if (res.success && res.data) {
+      cascadeLayers.value = res.data.layers || []
+      cascadeTotalReach.value = res.data.total_reach || 0
+      cascadeSpeed.value = res.data.speed || ''
+      emit('add-log', '链式反应推演完成')
+    }
+  } catch (error) {
+    emit('add-log', `链式反应推演失败: ${error.message}`)
+    cascadeLayers.value = []
+    cascadeTotalReach.value = 0
+    cascadeSpeed.value = ''
+  } finally {
+    isGeneratingCascade.value = false
+  }
+}
+
+const runCounterfactual = async () => {
+  if (!cfRemovedDay.value) return
+  isGeneratingCF.value = true
+  try {
+    const removedNode = removableEvents.value.find(n => n.day === parseInt(cfRemovedDay.value))
+    const removedEventDesc = removedNode?.event || `第${cfRemovedDay.value}天事件`
+    const res = await generateCounterfactual({
+      event_summary: predictionData.value.event_summary || eventSummary.value,
+      current_sentiment: predictionData.value.current_sentiment || currentSentiment.value,
+      original_timeline: originalTimeline.value,
+      removed_event_day: parseInt(cfRemovedDay.value),
+      removed_event_desc: removedEventDesc
+    })
+    if (res.success && res.data) {
+      cfResult.value = res.data
+      emit('add-log', `反事实推演完成: 移除D${cfRemovedDay.value}事件`)
+    }
+  } catch (error) {
+    emit('add-log', `反事实推演失败: ${error.message}`)
+    cfResult.value = null
+  } finally {
+    isGeneratingCF.value = false
   }
 }
 
@@ -1825,19 +2276,16 @@ const sendChatMessage = async () => {
 
 /* 主内容区 - 左右分栏 */
 .prediction-content {
-  display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: 20px;
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* 左侧栏 */
-.left-column {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.left-column {
+  display: none;
 }
 
 /* 实时情报卡片 */
@@ -2713,106 +3161,839 @@ const sendChatMessage = async () => {
   color: #475569;
 }
 
-/* 干预策略模拟 */
-.intervention-section {
+/* 🦋 蝴蝶效应沙盒 */
+.sandbox-section {
   background: white;
   border-radius: 12px;
-  padding: 20px;
+  padding: 24px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-.intervention-input-area {
-  display: flex;
+.sandbox-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 20px 0;
+}
+
+.card-pool {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
-.intervention-textarea {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+.card-pool-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 20px;
+  color: #64748b;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.card-pool-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 30px 20px;
+  color: #64748b;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px dashed #d1d5db;
+}
+
+.empty-icon {
+  font-size: 32px;
+}
+
+.empty-text {
   font-size: 14px;
-  resize: none;
-  font-family: inherit;
+  color: #94a3b8;
 }
 
-.intervention-textarea:focus {
+.btn-retry {
+  padding: 8px 16px;
+  background: #7c3aed;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-retry:hover {
+  background: #6d28d9;
+}
+
+.intervention-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.intervention-card:hover {
+  border-color: #8b5cf6;
+  background: #faf5ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+}
+
+.intervention-card.selected {
+  border-color: #7c3aed;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+}
+
+.card-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.card-effect {
+  font-size: 11px;
+  color: #7c3aed;
+  font-weight: 500;
+}
+
+.branch-controls {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.control-group label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.control-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #7c3aed;
+}
+
+.day-select {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+}
+
+.day-select:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #7c3aed;
 }
 
-.btn-simulate {
+.btn-branch,
+.btn-arena,
+.btn-heatmap,
+.btn-cascade,
+.btn-cf {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 12px 20px;
-  background: #6366f1;
+  padding: 8px 16px;
+  background: #7c3aed;
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
 }
 
-.btn-simulate:hover:not(:disabled) {
-  background: #4f46e5;
+.btn-branch:hover:not(:disabled),
+.btn-arena:hover:not(:disabled),
+.btn-heatmap:hover:not(:disabled),
+.btn-cascade:hover:not(:disabled),
+.btn-cf:hover:not(:disabled) {
+  background: #6d28d9;
 }
 
-.btn-simulate:disabled {
+.btn-branch:disabled,
+.btn-arena:disabled,
+.btn-heatmap:disabled,
+.btn-cascade:disabled,
+.btn-cf:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.intervention-result {
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.branch-chart-container {
+  margin-bottom: 20px;
+}
+
+.branch-chart-header {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 8px;
+  padding: 0 10px;
+}
+
+.branch-legend {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.branch-legend.original { color: #3b82f6; }
+.branch-legend.branch { color: #f59e0b; }
+
+.branch-chart {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.branch-svg {
+  width: 100%;
+}
+
+.original-line {
+  stroke: #3b82f6;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.branch-line {
+  stroke: #f59e0b;
+  stroke-width: 2.5;
+  stroke-dasharray: 8, 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.original-point {
+  fill: #3b82f6;
+  stroke: white;
+  stroke-width: 1.5;
+}
+
+.branch-point {
+  fill: #f59e0b;
+  stroke: white;
+  stroke-width: 1.5;
+}
+
+.intervention-line {
+  stroke: #ef4444;
+  stroke-width: 2;
+  stroke-dasharray: 6, 3;
+  opacity: 0.7;
+}
+
+.intervention-label {
+  font-size: 11px;
+  fill: #ef4444;
+  font-weight: 600;
+}
+
+.branch-comparison {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 16px;
   padding: 16px;
   background: #f8fafc;
   border-radius: 8px;
 }
 
-.result-metrics {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-.result-metric {
+.comparison-item {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 4px;
 }
 
-.metric-label {
+.comp-label {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.comp-value {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.comp-value.up { color: #ef4444; }
+.comp-value.down { color: #10b981; }
+
+.branch-analysis {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+
+.branch-analysis p {
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.sandbox-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.arena-section,
+.heatmap-section,
+.cascade-section,
+.counterfactual-section {
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.sub-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 12px 0;
+}
+
+.arena-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.arena-card {
+  padding: 12px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.arena-card.best {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+}
+
+.arena-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.arena-rank {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  min-width: 24px;
+}
+
+.arena-card.best .arena-rank {
+  color: #10b981;
+}
+
+.arena-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  flex: 1;
+}
+
+.arena-score {
+  font-size: 16px;
+  font-weight: 700;
+  color: #7c3aed;
+}
+
+.arena-card.best .arena-score {
+  color: #10b981;
+}
+
+.arena-metrics {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.arena-metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.am-label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.am-value {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.am-value.up { color: #ef4444; }
+.am-value.down { color: #10b981; }
+
+.arena-analysis {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.arena-recommendation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+  border-radius: 8px;
+  border-left: 3px solid #10b981;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.5;
+}
+
+.rec-icon {
+  flex-shrink: 0;
+}
+
+.heatmap-grid {
+  margin-top: 12px;
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.heatmap-container {
+  margin-top: 16px;
+}
+
+.heatmap-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.legend-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.legend-scale {
+  display: flex;
+  gap: 12px;
+}
+
+.legend-scale .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.color-box {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.heatmap-row {
+  display: flex;
+}
+
+.heatmap-cell {
+  min-width: 60px;
+  height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.header-cell {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-weight: 600;
+  color: white;
+  border-color: #5a67d8;
+}
+
+.type-cell {
+  background: #f8fafc;
+  font-weight: 500;
+  color: #334155;
+  min-width: 90px;
+  justify-content: flex-start;
+  padding-left: 10px;
+}
+
+.score-cell {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.score-cell:hover {
+  transform: scale(1.08);
+  z-index: 2;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.score-cell.excellent {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+}
+
+.score-cell.good {
+  background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%) !important;
+}
+
+.score-cell.average {
+  background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%) !important;
+}
+
+.score-cell.poor {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+}
+
+.score-cell.danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+}
+
+.score-value {
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.score-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.85);
+  margin-top: 2px;
+}
+
+/* 链式反应 */
+.cascade-container {
+  margin-top: 20px;
+}
+
+.cascade-flow {
+  position: relative;
+  padding-left: 20px;
+}
+
+.cascade-layer {
+  position: relative;
+  margin-bottom: 25px;
+  padding-left: 30px;
+}
+
+.layer-content {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.layer-content:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.layer-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.layer-level {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  margin-right: 10px;
+  flex-shrink: 0;
+}
+
+.layer-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+  flex: 1;
+}
+
+.layer-stats {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #666;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sentiment-shift.positive {
+  color: #28a745;
+}
+
+.sentiment-shift.negative {
+  color: #dc3545;
+}
+
+.layer-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.agent-tag {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.agent-tag.high {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+}
+
+.agent-tag.medium {
+  background: #fff8e1;
+  color: #ef6c00;
+  border: 1px solid #ffecb3;
+}
+
+.agent-tag.low {
+  background: #e8f5e8;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+.layer-connector {
+  position: absolute;
+  left: 14px;
+  top: 100%;
+  width: 2px;
+  height: 25px;
+  background: linear-gradient(to bottom, #667eea, #764ba2);
+}
+
+.cascade-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 20px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-label {
+  color: #666;
+}
+
+.summary-value {
+  color: #333;
+  font-weight: 600;
+}
+
+.btn-cascade {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 15px;
+}
+
+.btn-cascade:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-cascade:disabled {
+  background: #e0e0e0;
+  color: #9e9e9e;
+  cursor: not-allowed;
+}
+
+.cf-hint {
+  font-size: 12px;
+  color: #64748b;
+  font-style: italic;
+  margin: 0 0 12px 0;
+}
+
+.cf-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cf-select {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  background: white;
+}
+
+.cf-select:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+.cf-result {
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border-left: 3px solid #8b5cf6;
+}
+
+.cf-impact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cf-impact-label {
   font-size: 12px;
   color: #64748b;
 }
 
-.metric-value {
-  font-size: 18px;
-  font-weight: 600;
+.cf-impact-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #7c3aed;
 }
 
-.metric-value.up { color: #ef4444; }
-.metric-value.down { color: #10b981; }
-.metric-value.stars { color: #f59e0b; }
-
-.result-analysis h5 {
-  font-size: 14px;
-  color: #1e293b;
-  margin: 0 0 8px 0;
-}
-
-.result-analysis p {
-  font-size: 13px;
-  color: #64748b;
+.cf-desc,
+.cf-diff,
+.cf-analysis {
+  font-size: 12px;
+  color: #475569;
   line-height: 1.5;
-  margin: 0;
+  margin: 0 0 6px 0;
+}
+
+.cf-diff {
+  color: #92400e;
+  font-weight: 500;
+}
+
+.cf-analysis {
+  color: #64748b;
+  font-style: italic;
+  margin-bottom: 0;
 }
 
 /* AI助手 */
