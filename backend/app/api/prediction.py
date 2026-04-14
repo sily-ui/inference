@@ -977,3 +977,66 @@ def generate_timeline_events():
         return jsonify(
             {"success": False, "error": str(e), "traceback": traceback.format_exc()}
         ), 500
+
+
+@prediction_bp.route("/counterfactual-dag", methods=["POST"])
+def generate_counterfactual_dag():
+    """
+    反事实推演引擎 - 生成DAG传播网络和态势趋势数据
+
+    请求（JSON）：
+        {
+            "event_summary": "事件摘要",
+            "current_sentiment": "负面",
+            "time_range": 7,
+            "strategy": "natural|official|cutnode|amplify",
+            "simulation_data": {...},
+            "original_timeline": [...]
+        }
+
+    返回：
+        {
+            "success": true,
+            "data": {
+                "dag": {
+                    "nodes": [{id, name, depth, influence, sentiment, ...}],
+                    "edges": [{source, target}]
+                },
+                "trend": {
+                    "original": [{time, value}],
+                    "intervened": [{time, value}]
+                }
+            }
+        }
+    """
+    try:
+        data = request.get_json() or {}
+
+        event_summary = data.get("event_summary", "")
+        current_sentiment = data.get("current_sentiment", "中性")
+        time_range = data.get("time_range", 7)
+        strategy = data.get("strategy", "natural")
+        simulation_data = data.get("simulation_data", {})
+        original_timeline = data.get("original_timeline", [])
+
+        if not event_summary:
+            return jsonify({"success": False, "error": "请提供事件摘要"}), 400
+
+        service = InterventionSandboxService()
+
+        result = service.generate_counterfactual_dag(
+            event_summary=event_summary,
+            current_sentiment=current_sentiment,
+            time_range=time_range,
+            strategy=strategy,
+            simulation_data=simulation_data,
+            original_timeline=original_timeline,
+        )
+
+        return jsonify({"success": True, "data": result})
+
+    except Exception as e:
+        logger.error(f"反事实DAG推演失败: {str(e)}")
+        return jsonify(
+            {"success": False, "error": str(e), "traceback": traceback.format_exc()}
+        ), 500

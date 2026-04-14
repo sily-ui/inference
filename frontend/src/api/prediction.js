@@ -299,3 +299,22 @@ export function generateTimelineEvents(data) {
     data
   })
 }
+
+/**
+ * 反事实推演引擎 - 生成DAG传播网络和态势趋势
+ * @param {Object} data
+ * @param {string} data.event_summary - 事件摘要
+ * @param {string} data.current_sentiment - 当前情绪
+ * @param {number} data.time_range - 预测天数
+ * @param {string} data.strategy - 干预策略 (natural|official|cutnode|amplify)
+ * @param {Object} data.simulation_data - 模拟数据
+ * @param {Array} data.original_timeline - 原始预测时间线
+ * @returns {Promise<Object>} DAG数据和趋势数据
+ */
+export function generateCounterfactualDAG(data) {
+  return service({
+    url: '/api/prediction/counterfactual-dag',
+    method: 'post',
+    data
+  })
+}

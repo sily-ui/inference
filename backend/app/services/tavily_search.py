@@ -22,7 +22,8 @@ class TavilySearchService:
     """Tavily 搜索服务"""
 
     def __init__(self):
-        self.api_key = os.environ.get("TAVILY_API_KEY", "")
+        # 优先从Config获取，如果没有则尝试从环境变量获取
+        self.api_key = getattr(Config, 'TAVILY_API_KEY', None) or os.environ.get("TAVILY_API_KEY", "")
         self.llm_client = LLMClient()
 
         if not self.api_key:

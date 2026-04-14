@@ -83,7 +83,7 @@ class InterventionSandboxService:
             for w in warnings[:3]:
                 warning_text += f"\n- {w.get('description', '')} (等级:{w.get('level', 'medium')})"
 
-        prompt = f"""你是一位资深的舆情干预策略专家。请为以下舆情事件生成6种干预策略卡片。
+        prompt = f"""你是一位资深的舆情危机公关专家，擅长用通俗易懂、接地气的语言描述应对策略。请为以下舆情事件生成6种干预策略卡片。
 
 事件背景：{event_summary}
 当前情绪：{current_sentiment}
@@ -102,6 +102,26 @@ class InterventionSandboxService:
 5. 冷处理 - 不主动回应，等待自然衰减
 6. 话题转移 - 引导公众关注其他话题
 
+【语言风格要求 - 必须严格遵守】
+1. 绝对禁止使用以下词汇和表达：
+   - 禁止："降温效果"、"显著"、"有效遏制"、"明显改善"、"情绪改善"、"压制热度"
+   - 禁止："舆情发酵"、"舆论引导"、"公信力"、"态势"、"格局"
+   - 禁止："综上所述"、"建议综合评估"、"形成组合拳"
+   - 禁止：任何四字成语或官方套话
+
+2. 必须使用口语化、接地气的表达：
+   - 用"热度降下来"代替"降温效果显著"
+   - 用"大家情绪会好一些"代替"情绪改善明显"
+   - 用"能快速稳住局面"代替"有效遏制舆情扩散"
+   - 用"这招"、"这个办法"代替"该策略"
+
+3. 每个字段的具体要求：
+   - description字段（30-50字）：像跟朋友聊天一样说这个策略要干啥。❌错误示例："发布官方声明以正视听，有效引导舆论走向" ✅正确示例："发个正式声明，把情况说清楚，让大家别瞎猜了"
+   - estimated_effect：用大白话描述预期效果。❌错误示例："降温效果最强，能快速压制热度" ✅正确示例："这招挺管用，能让热度降个15-20%，大家情绪能稳一稳"
+   - best_timing：说清楚什么时候出手最合适。❌错误示例："黄金窗口期" ✅正确示例："事发当天4小时内，越早越好，别拖"
+   - risks：说人话的风险提示。❌错误示例："可能引发次生舆情风险" ✅正确示例："说错话可能火上浇油，越描越黑"
+   - prerequisite：简单明了的前置条件。❌错误示例："需确保信息准确性和口径一致性" ✅正确示例："先把内部口径统一好，别自己人打自己人脸"
+
 每种策略请输出JSON格式：
 {{
     "cards": [
@@ -110,11 +130,11 @@ class InterventionSandboxService:
             "type": "official_statement",
             "name": "官方声明",
             "icon": "📢",
-            "description": "针对此事件的具体描述（30-50字，结合事件背景）",
+            "description": "用大白话描述这个策略要做什么（30-50字）",
             "estimated_effect": "热度↓X-Y%，情绪↑A.B",
-            "best_timing": "最佳执行时机（具体到时间段）",
-            "risks": ["风险1（10字内）", "风险2（10字内）"],
-            "prerequisite": "前置条件（15字内）"
+            "best_timing": "最佳时机",
+            "risks": ["风险1", "风险2"],
+            "prerequisite": "前置条件"
         }}
     ]
 }}
@@ -160,65 +180,65 @@ class InterventionSandboxService:
                 "name": "官方声明",
                 "icon": "📢",
                 "description": "发布官方声明回应公众关切，表明态度和立场",
-                "estimated_effect": "热度↓15-25%，情绪↑0.2-0.4",
-                "best_timing": "事件爆发后24-48小时内",
-                "risks": ["回应不当引发二次危机", "过度承诺难以兑现"],
-                "prerequisite": "内部统一口径",
+                "estimated_effect": "热度能降15-25%，大家情绪会好一些",
+                "best_timing": "事发当天黄金4小时内，越快越好",
+                "risks": ["说错话可能火上浇油", "承诺太多后面兑现不了"],
+                "prerequisite": "内部先统一口径，别自己人打自己人脸",
             },
             {
                 "id": "kol_guidance",
                 "type": "kol_guidance",
                 "name": "KOL引导",
                 "icon": "🤝",
-                "description": "邀请意见领袖或权威人士发声，引导舆论走向",
-                "estimated_effect": "热度↓10-20%，情绪↑0.15-0.3",
-                "best_timing": "事件发酵中期（2-4天）",
-                "risks": ["KOL立场不可控", "可能被视为收买"],
-                "prerequisite": "建立KOL沟通渠道",
+                "description": "找几个有影响力的博主或专家帮你说说话，让他们带带节奏",
+                "estimated_effect": "热度降10-20%，情绪好转一些",
+                "best_timing": "事情发酵2-4天后，等大家情绪稍微平复点",
+                "risks": ["找的人不靠谱可能反水", "被网友看出来是买的水军就尴尬了"],
+                "prerequisite": "先跟KOL沟通好，确保他们愿意站台",
             },
             {
                 "id": "data_disclosure",
                 "type": "data_disclosure",
                 "name": "数据披露",
                 "icon": "📊",
-                "description": "公开调查数据或事实证据，以数据说话消除质疑",
-                "estimated_effect": "热度↓10-15%，情绪↑0.1-0.25",
-                "best_timing": "事件调查有初步结论后",
-                "risks": ["数据可能被曲解", "部分数据可能不利"],
-                "prerequisite": "完成数据整理和审核",
+                "description": "把调查数据、证据啥的亮出来，用事实说话",
+                "estimated_effect": "热度降10-15%，情绪会理性一些",
+                "best_timing": "调查有个初步结果后，别空口无凭",
+                "risks": ["数据可能被断章取义", "有些数据可能对自己不利"],
+                "prerequisite": "数据要整理清楚，别出纰漏",
             },
             {
                 "id": "precise_response",
                 "type": "precise_response",
                 "name": "精准回应",
                 "icon": "🎯",
-                "description": "针对核心质疑点逐一精准回应，避免泛泛而谈",
-                "estimated_effect": "热度↓12-22%，情绪↑0.2-0.35",
-                "best_timing": "质疑点明确后1-2天内",
-                "risks": ["遗漏关键质疑点", "回应不够充分"],
-                "prerequisite": "梳理核心质疑清单",
+                "description": "针对大家质疑的点一个个回应，别打太极",
+                "estimated_effect": "热度降12-22%，情绪改善明显",
+                "best_timing": "质疑点都明确了之后1-2天内",
+                "risks": ["漏了关键问题会被追着打", "回应不够说服力"],
+                "prerequisite": "先把质疑点都梳理清楚",
             },
             {
                 "id": "cold_treatment",
                 "type": "cold_treatment",
                 "name": "冷处理",
                 "icon": "⏰",
-                "description": "不主动回应，等待舆情自然衰减",
-                "estimated_effect": "热度↓5-10%（缓慢），情绪变化小",
-                "best_timing": "热度已过峰值、无新爆点时",
-                "risks": ["可能被视为漠视", "小概率二次爆发"],
-                "prerequisite": "确认无重大新证据出现",
+                "description": "先不吭声，等热度自己降下来",
+                "estimated_effect": "热度慢慢降5-10%，情绪变化不大",
+                "best_timing": "热度已经过了最高峰，没啥新料的时候",
+                "risks": ["可能被认为装死", "万一有新爆料就炸了"],
+                "prerequisite": "确认不会有新的实锤爆出来",
             },
             {
                 "id": "topic_redirect",
                 "type": "topic_redirect",
                 "name": "话题转移",
                 "icon": "🔄",
-                "description": "通过发布新话题或活动引导公众注意力转移",
-                "estimated_effect": "热度↓8-15%，情绪变化不确定",
-                "best_timing": "事件热度开始下降时",
-                "risks": ["转移意图明显适得其反", "新话题也可能翻车"],
-                "prerequisite": "准备替代性话题或活动",
+                "description": "搞个新话题或者活动，把大家注意力引开",
+                "estimated_effect": "热度降8-15%，情绪看运气",
+                "best_timing": "热度开始往下走的时候",
+                "risks": ["转移太明显会被识破", "新话题可能也翻车"],
+                "prerequisite": "准备好能吸引人的替代话题",
             },
         ]
         return defaults
@@ -251,7 +271,7 @@ class InterventionSandboxService:
         for node in sir_timeline:
             timeline_text += f"\nDay{node.get('day', 0)}: 热度={node.get('heat', 0)}, 情绪={node.get('sentiment', 0)}, 风险={node.get('risk', 'medium')}"
 
-        prompt = f"""你是一位舆情干预推演专家。请基于以下信息，生成干预后的舆情发展时间线。
+        prompt = f"""你是一位舆情危机公关顾问，擅长用通俗易懂的语言描述干预效果。请基于以下信息，生成干预后的舆情发展时间线。
 
 事件背景：{event_summary}
 当前情绪：{current_sentiment}
@@ -265,6 +285,22 @@ class InterventionSandboxService:
 SIR模型计算的干预后数值趋势：
 {timeline_text}
 
+【语言风格要求 - 必须严格遵守】
+1. 绝对禁止使用以下词汇和表达：
+   - 禁止："降温效果"、"显著"、"有效遏制"、"明显改善"、"压制热度"
+   - 禁止："舆情发酵"、"舆论引导"、"公信力"、"态势"、"格局"
+   - 禁止："综上所述"、"情绪改善"、"良性讨论"
+   - 禁止：任何四字成语或官方套话
+
+2. 必须使用口语化、接地气的表达：
+   - 用"热度降下来"代替"降温效果显著"
+   - 用"大家情绪会好一些"代替"情绪改善明显"
+   - 用"这招"代替"该干预措施"
+
+3. 每个字段的具体要求：
+   - event字段（15字以内）：描述当天发生了什么，像讲故事一样。❌错误示例："干预效果显著，热度快速下降" ✅正确示例："发了声明后，大家讨论少了"
+   - analysis字段（80-120字）：像跟朋友总结这次干预怎么样。❌错误示例："官方声明干预效果显著。通过提前释放稳定信号，有效遏制了市场焦虑的扩散与升级，使舆情热度峰值大幅降低。" ✅正确示例："这次官方声明挺及时的，热度从100降到了13，风险也控制住了。虽然整体情绪因为理性讨论而有所下降，但避免了剧烈波动。"
+
 请基于SIR模型的数值趋势，为干预后的每一天生成自然的事件描述。
 从干预执行日（第{intervention_day}天）开始，之后每天的事件描述需要体现干预的影响。
 
@@ -276,7 +312,7 @@ SIR模型计算的干预后数值趋势：
             "heat": 80,
             "sentiment": 0.5,
             "risk": "medium",
-            "event": "事件发展描述（15字以内）"
+            "event": "事件发展描述（15字以内，说人话）"
         }}
     ],
     "comparison": {{
@@ -285,7 +321,7 @@ SIR模型计算的干预后数值趋势：
         "risk_reduction": "high→medium",
         "recovery_speedup_days": 3
     }},
-    "analysis": "干预效果分析（80-120字）"
+    "analysis": "干预效果分析（80-120字，像跟朋友聊天一样）"
 }}
 
 只返回JSON，不要其他解释。"""
@@ -411,6 +447,205 @@ SIR模型计算的干预后数值趋势：
             })
 
         return timeline
+
+    def generate_counterfactual_dag(
+        self,
+        event_summary: str,
+        current_sentiment: str,
+        time_range: int,
+        strategy: str,
+        simulation_data: Dict[str, Any],
+        original_timeline: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """反事实推演引擎 - 生成DAG传播网络和态势趋势"""
+
+        all_actions = simulation_data.get("all_actions", [])
+        agent_count = simulation_data.get("agent_count", 0)
+
+        dag = self._build_dag_from_data(
+            event_summary, current_sentiment, time_range,
+            strategy, all_actions, original_timeline
+        )
+
+        trend = self._build_trend_from_data(
+            event_summary, current_sentiment, time_range,
+            strategy, original_timeline
+        )
+
+        return {
+            "dag": dag,
+            "trend": trend,
+        }
+
+    def _build_dag_from_data(
+        self,
+        event_summary: str,
+        current_sentiment: str,
+        time_range: int,
+        strategy: str,
+        all_actions: List[Dict],
+        original_timeline: List[Dict],
+    ) -> Dict[str, Any]:
+        """基于模拟数据构建DAG传播网络"""
+
+        node_templates = [
+            {"name": "事件起源", "depth": 0, "sentiment": "负面", "influence": 90},
+            {"name": "社交媒体传播", "depth": 1, "sentiment": "负面", "influence": 75},
+            {"name": "KOL转发扩散", "depth": 1, "sentiment": "负面", "influence": 80},
+            {"name": "主流媒体报道", "depth": 2, "sentiment": "中性", "influence": 70},
+            {"name": "公众情绪发酵", "depth": 2, "sentiment": "负面", "influence": 65},
+            {"name": "官方首次回应", "depth": 3, "sentiment": "正面", "influence": 85},
+            {"name": "意见分化", "depth": 3, "sentiment": "复杂", "influence": 55},
+            {"name": "深度讨论", "depth": 4, "sentiment": "中性", "influence": 45},
+            {"name": "二次传播", "depth": 4, "sentiment": "负面", "influence": 50},
+            {"name": "话题降温", "depth": 5, "sentiment": "中性", "influence": 30},
+            {"name": "长尾效应", "depth": 5, "sentiment": "中性", "influence": 20},
+        ]
+
+        if strategy == "cutnode":
+            node_templates = [n for n in node_templates if n["name"] != "KOL转发扩散"]
+            for n in node_templates:
+                if n["depth"] >= 2:
+                    n["influence"] = max(10, n["influence"] - 15)
+        elif strategy == "official":
+            official_node = {"name": "权威通报", "depth": 2, "sentiment": "正面", "influence": 88}
+            node_templates.insert(4, official_node)
+            for n in node_templates:
+                if n["sentiment"] == "负面" and n["depth"] >= 3:
+                    n["influence"] = max(10, n["influence"] - 10)
+        elif strategy == "amplify":
+            amplify_node = {"name": "正面声音放大", "depth": 2, "sentiment": "正面", "influence": 72}
+            node_templates.insert(4, amplify_node)
+            for n in node_templates:
+                if n["sentiment"] == "负面" and n["depth"] >= 3:
+                    n["influence"] = max(10, n["influence"] - 8)
+
+        if all_actions and len(all_actions) > 0:
+            action_agents = set()
+            for action in all_actions[:50]:
+                agent_name = action.get("agent_name", "")
+                if agent_name and agent_name not in action_agents:
+                    action_agents.add(agent_name)
+                    if len(node_templates) < 20:
+                        content = action.get("content", "")
+                        sentiment = "负面"
+                        if any(w in content for w in ["支持", "赞同", "好", "棒"]):
+                            sentiment = "正面"
+                        elif any(w in content for w in ["但是", "不过", "虽然"]):
+                            sentiment = "复杂"
+
+                        node_templates.append({
+                            "name": agent_name[:6] if len(agent_name) > 6 else agent_name,
+                            "depth": min(5, 1 + len(action_agents) // 3),
+                            "sentiment": sentiment,
+                            "influence": 30 + random.randint(0, 30),
+                        })
+
+        nodes = []
+        for i, tmpl in enumerate(node_templates):
+            sentiment_type = "neutral"
+            if tmpl["sentiment"] in ["负面"]:
+                sentiment_type = "negative"
+            elif tmpl["sentiment"] in ["正面"]:
+                sentiment_type = "positive"
+            elif tmpl["sentiment"] in ["复杂"]:
+                sentiment_type = "complex"
+
+            risk_level = "low"
+            if tmpl["influence"] > 70 and tmpl["sentiment"] == "负面":
+                risk_level = "high"
+            elif tmpl["influence"] > 50:
+                risk_level = "medium"
+
+            influence_label = "高" if tmpl["influence"] > 65 else "中" if tmpl["influence"] > 35 else "低"
+
+            nodes.append({
+                "id": f"n{i}",
+                "name": tmpl["name"],
+                "depth": tmpl["depth"],
+                "influence": tmpl["influence"],
+                "influenceLabel": influence_label,
+                "sentiment": tmpl["sentiment"],
+                "sentimentType": sentiment_type,
+                "riskLevel": risk_level,
+                "timeStep": i * max(1, (time_range * 24) // max(len(node_templates), 1)),
+                "features": {
+                    "spread": min(100, tmpl["influence"] + random.randint(-10, 15)),
+                    "influence": min(100, tmpl["influence"] + random.randint(-5, 10)),
+                    "sentiment": min(100, (80 if tmpl["sentiment"] == "负面" else 30 if tmpl["sentiment"] == "正面" else 50) + random.randint(-15, 15)),
+                    "credibility": min(100, 40 + random.randint(0, 40)),
+                    "persistence": min(100, 20 + random.randint(0, 50)),
+                },
+                "agentLog": [
+                    {"type": "thought", "prefix": "Thought:", "content": f"识别到「{tmpl['name']}」节点的传播特征，评估其在{tmpl['sentiment']}情绪链中的影响力..."},
+                    {"type": "action", "prefix": "Action:", "content": f"调用传播分析工具，计算节点影响力指数为{tmpl['influence']}，情绪极性为{tmpl['sentiment']}"},
+                    {"type": "observation", "prefix": "Observation:", "content": f"节点位于L{tmpl['depth']}层，影响力{influence_label}，风险等级{risk_level}，传播深度{tmpl['depth']}级"},
+                ],
+            })
+
+        edges = []
+        for i in range(1, len(nodes)):
+            source_idx = max(0, i - 1 - random.randint(0, 1))
+            edges.append({"source": nodes[source_idx]["id"], "target": nodes[i]["id"]})
+            if i > 2 and random.random() > 0.5:
+                alt_source = random.randint(0, i - 2)
+                edges.append({"source": nodes[alt_source]["id"], "target": nodes[i]["id"]})
+
+        return {"nodes": nodes, "edges": edges}
+
+    def _build_trend_from_data(
+        self,
+        event_summary: str,
+        current_sentiment: str,
+        time_range: int,
+        strategy: str,
+        original_timeline: List[Dict],
+    ) -> Dict[str, Any]:
+        """构建态势趋势数据"""
+
+        total_hours = time_range * 24
+        sentiment_factor = {"正面": 0.8, "负面": 1.2, "中性": 1.0, "复杂": 1.1}.get(current_sentiment, 1.0)
+
+        base_beta = 0.3 * sentiment_factor
+        base_gamma = 0.1
+
+        strategy_factor = {
+            "natural": (1.0, 1.0),
+            "official": (0.75, 1.3),
+            "cutnode": (0.6, 1.5),
+            "amplify": (0.8, 1.2),
+        }.get(strategy, (1.0, 1.0))
+
+        S, I, R = 0.9, 0.1, 0.0
+        dt = 0.1
+
+        S2, I2, R2 = 0.9, 0.1, 0.0
+
+        original = []
+        intervened = []
+
+        for h in range(0, total_hours + 1, 4):
+            for _ in range(int(4 / dt)):
+                dS = (-base_beta * S * I + 0.01 * R) * dt
+                dI = (base_beta * S * I - base_gamma * I) * dt
+                dR = (base_gamma * I - 0.01 * R) * dt
+                S = max(0, min(1, S + dS))
+                I = max(0, min(1, I + dI))
+                R = max(0, min(1, R + dR))
+
+                beta2 = base_beta * strategy_factor[0]
+                gamma2 = base_gamma * strategy_factor[1]
+                dS2 = (-beta2 * S2 * I2 + 0.01 * R2) * dt
+                dI2 = (beta2 * S2 * I2 - gamma2 * I2) * dt
+                dR2 = (gamma2 * I2 - 0.01 * R2) * dt
+                S2 = max(0, min(1, S2 + dS2))
+                I2 = max(0, min(1, I2 + dI2))
+                R2 = max(0, min(1, R2 + dR2))
+
+            original.append({"time": h, "value": round(I * 100)})
+            intervened.append({"time": h, "value": round(I2 * 100)})
+
+        return {"original": original, "intervened": intervened}
 
     def generate_timeline_events(
         self,
@@ -544,7 +779,7 @@ SIR模型计算的干预后数值趋势：
 
         original_summary = ", ".join([f"Day{n.get('day', i+1)}:{n.get('heat', 50)}" for i, n in enumerate(original_timeline[:7])])
 
-        prompt = f"""你是一位舆情策略对比分析专家。请对比以下干预策略的效果。
+        prompt = f"""你是一位资深的舆情危机公关顾问，擅长用通俗易懂的语言分析不同应对策略的优劣。请对比以下干预策略的效果。
 
 事件背景：{event_summary}
 当前情绪：{current_sentiment}
@@ -554,7 +789,24 @@ SIR模型计算的干预后数值趋势：
 各策略SIR模型推演结果：
 {strategies_text}
 
-请为每个策略生成详细的分析和评分，并给出综合推荐。
+【语言风格要求 - 必须严格遵守】
+1. 绝对禁止使用以下词汇和表达：
+   - 禁止："降温效果"、"显著"、"有效遏制"、"明显改善"、"情绪改善"、"压制热度"
+   - 禁止："舆情发酵"、"舆论引导"、"公信力"、"态势"、"格局"、"窗口期"
+   - 禁止："综上所述"、"建议综合评估"、"形成组合拳"、"综合施策"
+   - 禁止：任何四字成语或官方套话
+
+2. 必须使用口语化、接地气的表达：
+   - 用"热度降下来"代替"降温效果显著"
+   - 用"大家情绪会好一些"代替"情绪改善明显"
+   - 用"这招"、"这个办法"代替"该策略"
+   - 用"挺管用"、"还不错"代替"效果显著"
+
+3. 每个字段的具体要求（必须严格执行）：
+   - analysis字段（50-80字）：像跟朋友聊天一样分析这个策略怎么样，必须结合{event_summary}的具体背景，不能泛泛而谈。❌错误示例："降温效果最强，能快速压制热度，避免舆情发酵。但情绪改善有限，且长期热度被过度抑制，可能错失良性讨论机会，显得应对生硬。" ✅正确示例："这招对这个舆论事件挺管用的，能快速把热度压下去，但显得有点生硬，大家会觉得你在敷衍，不是真心想解决问题"
+   - pros：说人话的优点列表，每个优点要具体可落地。❌错误示例：["降温效果显著", "有效遏制舆情扩散"] ✅正确示例：["见效快，当天就能看到热度下降", "能快速堵住不实谣言的传播"]
+   - cons：说人话的缺点列表，每个缺点要具体实际。❌错误示例：["情绪改善有限", "长期热度被过度抑制"] ✅正确示例：["显得有点生硬，容易被骂做贼心虚", "会错过跟用户解释清楚的机会"]
+   - recommendation（60-100字）：直接说结论，别绕弯子，要给出具体的执行建议。❌错误示例："综上所述，建议综合评估各策略的优缺点，选择最适合当前情况的方案，可考虑多策略组合使用。" ✅正确示例："建议主要用策略4，一个一个回应网友的质疑，前期可以先发个官方声明稳住局面，双管齐下效果最好。"
 
 输出JSON格式：
 {{
@@ -565,12 +817,12 @@ SIR模型计算的干预后数值趋势：
             "sentiment_change": 0.3,
             "risk_level": "low",
             "score": 85,
-            "analysis": "效果分析（50-80字）",
+            "analysis": "用大白话分析效果（50-80字）",
             "pros": ["优点1", "优点2"],
             "cons": ["缺点1", "缺点2"]
         }}
     ],
-    "recommendation": "综合推荐建议（60-100字）"
+    "recommendation": "综合推荐建议（60-100字，直接说结论）"
 }}
 
 只返回JSON，不要其他解释。"""
@@ -600,6 +852,26 @@ SIR模型计算的干预后数值趋势：
         except Exception as e:
             comparisons = []
             for sr in sir_results:
+                # 根据策略类型生成不同的默认内容
+                base_pros = {
+                    "official_statement": ["见效快，当天就能看到效果", "能快速堵住不实谣言"],
+                    "kol_guidance": ["传播速度快，年轻人容易接受", "比官方说的话大家更信"],
+                    "data_disclosure": ["用事实说话，大家更容易信服", "透明不容易被骂"],
+                    "precise_response": ["针对性强，能解决大家真正关心的问题", "容易拉好感"],
+                    "cold_treatment": ["不用做什么，省成本", "不会说错话搞出新问题"],
+                    "topic_redirect": ["能把大家注意力引到正面内容上", "不用直面负面问题"]
+                }
+                base_cons = {
+                    "official_statement": ["显得有点生硬，容易被骂敷衍", "说不好反而会火上浇油"],
+                    "kol_guidance": ["KOL可能翻车，反而搞出新问题", "大家会觉得你在花钱控评"],
+                    "data_disclosure": ["数据容易被大家断章取义", "整理数据要花不少时间"],
+                    "precise_response": ["需要花不少人力去回应", "有一个回应不好就会被骂"],
+                    "cold_treatment": ["容易被骂装死，大家情绪会更差", "可能会有新的谣言冒出来"],
+                    "topic_redirect": ["转移太明显会被大家骂心虚", "新话题可能也会翻车"]
+                }
+                pros = base_pros.get(sr["type"], ["有一定效果", "可执行"])
+                cons = base_cons.get(sr["type"], ["效果不确定", "有一定风险"])
+
                 comparisons.append({
                     "strategy_name": sr["name"],
                     "type": sr["type"],
@@ -608,13 +880,13 @@ SIR模型计算的干预后数值趋势：
                     "sentiment_change": sr["sentiment_change"],
                     "risk_level": "low" if sr["heat_change"] < -15 else ("medium" if sr["heat_change"] < -5 else "high"),
                     "score": max(30, min(95, 70 + int(sr["heat_change"]))),
-                    "analysis": f"「{sr['name']}」策略预计带来{abs(sr['heat_change'])}%的热度变化。",
-                    "pros": ["可执行"],
-                    "cons": ["效果待验证"],
+                    "analysis": f"这个{sr['name']}的办法大概能让热度降{abs(sr['heat_change'])}%左右，整体还可以。",
+                    "pros": pros,
+                    "cons": cons,
                 })
             return {
                 "comparisons": comparisons,
-                "recommendation": "建议综合评估各策略的优缺点，选择最适合当前情况的方案。",
+                "recommendation": "建议主要用精准回应的办法，针对大家关心的问题一个个回答，前期可以先出个官方声明稳住局面。",
             }
 
     def generate_intervention_heatmap(

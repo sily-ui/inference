@@ -63,18 +63,7 @@
 
     <!-- 主内容区 -->
     <div class="prediction-content" v-else-if="predictionData">
-      <!-- 预测结论 -->
-        <div class="conclusion-section">
-          <h4 class="section-title">预测结论</h4>
-          <div class="conclusion-content">
-            <p>{{ predictionData.conclusion }}</p>
-            <button class="btn-reanalyze" @click="resetPrediction">
-              <span>🔄</span> 重新分析
-            </button>
-          </div>
-        </div>
-
-        <!-- 🦋 蝴蝶效应沙盒 -->
+      <!-- 🦋 蝴蝶效应沙盒 -->
         <div class="sandbox-section">
           <h4 class="section-title">🦋 蝴蝶效应沙盒</h4>
           <p class="sandbox-subtitle">选择干预策略，观察蝴蝶效应如何改变舆情走向</p>
@@ -260,7 +249,6 @@
             <!-- 时机热力图 -->
             <div class="heatmap-section">
               <h5 class="sub-title">🗺️ 干预时机热力图</h5>
-              <p class="heatmap-hint">颜色越绿表示干预效果越好，点击单元格查看详情</p>
               <button
                 class="btn-heatmap"
                 :disabled="isGeneratingHeatmap"
@@ -269,188 +257,32 @@
                 <span v-if="isGeneratingHeatmap" class="spinner-sm"></span>
                 <span v-else>🗺️ 生成热力图</span>
               </button>
-              <div class="heatmap-container" v-if="heatmapData.length > 0">
-                <div class="heatmap-legend">
-                  <span class="legend-label">效果评分</span>
-                  <div class="legend-scale">
-                    <span class="legend-item"><span class="color-box" style="background: #22c55e"></span>极佳</span>
-                    <span class="legend-item"><span class="color-box" style="background: #84cc16"></span>良好</span>
-                    <span class="legend-item"><span class="color-box" style="background: #eab308"></span>一般</span>
-                    <span class="legend-item"><span class="color-box" style="background: #f97316"></span>较差</span>
-                    <span class="legend-item"><span class="color-box" style="background: #ef4444"></span>危险</span>
-                  </div>
+              <div class="heatmap-wrapper" v-if="heatmapData.length > 0">
+                <div class="heatmap-canvas" ref="heatmapCanvas"></div>
+                <div class="heatmap-explanation" v-if="heatmapExplanation">
+                  <span class="explanation-icon">💡</span>
+                  <span class="explanation-text">{{ heatmapExplanation }}</span>
                 </div>
-                <div class="heatmap-grid">
-                  <div class="heatmap-row heatmap-header-row">
-                    <div class="heatmap-cell header-cell">干预类型</div>
-                    <div v-for="day in heatmapDays" :key="'hd'+day" class="heatmap-cell header-cell">Day {{ day }}</div>
-                  </div>
-                  <div v-for="row in heatmapData" :key="row.type" class="heatmap-row">
-                    <div class="heatmap-cell type-cell">{{ row.type_name }}</div>
-                    <div
-                      v-for="score in row.scores"
-                      :key="score.day"
-                      class="heatmap-cell score-cell"
-                      :class="getHeatmapClass(score.score)"
-                      :title="`${row.type_name} Day${score.day}: ${score.score}分\n${score.effectiveness || ''}\n${score.risk_note || ''}`"
-                    >
-                      <span class="score-value">{{ score.score }}</span>
-                      <span class="score-label">{{ score.effectiveness }}</span>
-                    </div>
-                  </div>
-                </div>
+              </div>
+              <div class="heatmap-loading" v-else-if="isGeneratingHeatmap">
+                <div class="heatmap-loading-ring"></div>
+                <span>正在计算干预时机矩阵...</span>
               </div>
             </div>
           </div>
 
-          <!-- 链式反应 + 反事实推演 -->
-          <div class="sandbox-grid">
-            <!-- 链式反应 -->
-          <div class="cascade-section">
-            <h5 class="sub-title">🌊 链式反应</h5>
-            <button
-              class="btn-cascade"
-              :disabled="isGeneratingCascade || !selectedCard"
-              @click="runCascadeEffect"
-            >
-              <span v-if="isGeneratingCascade" class="spinner-sm"></span>
-              <span v-else>🌊 推演链式反应</span>
-            </button>
-            <div class="cascade-container" v-if="cascadeLayers.length > 0">
-              <div class="cascade-flow">
-                <div 
-                  v-for="(layer, index) in cascadeLayers" 
-                  :key="layer.level" 
-                  class="cascade-layer"
-                  :class="{ 'last-layer': index === cascadeLayers.length - 1 }"
-                >
-                  <div class="layer-content">
-                    <div class="layer-header">
-                      <div class="layer-level">L{{ layer.level }}</div>
-                      <div class="layer-title">{{ layer.description }}</div>
-                    </div>
-                    <div class="layer-stats">
-                      <span class="stat-item">👥 {{ layer.affected_count }}人</span>
-                      <span class="stat-item sentiment-shift" :class="layer.sentiment_shift >= 0 ? 'positive' : 'negative'">
-                        💭 {{ layer.sentiment_shift > 0 ? '+' : '' }}{{ layer.sentiment_shift }}
-                      </span>
-                    </div>
-                    <div class="layer-agents" v-if="layer.key_agents && layer.key_agents.length > 0">
-                      <span 
-                        v-for="agent in layer.key_agents" 
-                        :key="agent.name" 
-                        class="agent-tag"
-                        :class="agent.influence"
-                      >
-                        {{ agent.name }}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="layer-connector" v-if="index < cascadeLayers.length - 1"></div>
-                </div>
-              </div>
-              <div class="cascade-summary" v-if="cascadeTotalReach > 0">
-                <div class="summary-item">
-                  <span class="summary-label">总触达:</span>
-                  <span class="summary-value">{{ cascadeTotalReach }}人</span>
-                </div>
-                <div class="summary-item">
-                  <span class="summary-label">传播速度:</span>
-                  <span class="summary-value">{{ cascadeSpeed }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-            <!-- 反事实推演 -->
-            <div class="counterfactual-section">
-              <h5 class="sub-title">🔮 反事实推演</h5>
-              <p class="cf-hint">"如果某个事件没有发生，舆情会如何发展？"</p>
-              <div class="cf-controls">
-                <select v-model="cfRemovedDay" class="cf-select">
-                  <option value="">选择要移除的事件节点</option>
-                  <option v-for="node in removableEvents" :key="node.day" :value="node.day">
-                    D{{ node.day }}: {{ node.event }}
-                  </option>
-                </select>
-                <button
-                  class="btn-cf"
-                  :disabled="isGeneratingCF || !cfRemovedDay"
-                  @click="runCounterfactual"
-                >
-                  <span v-if="isGeneratingCF" class="spinner-sm"></span>
-                  <span v-else>🔮 推演</span>
-                </button>
-              </div>
-              <div class="cf-result" v-if="cfResult">
-                <div class="cf-impact">
-                  <span class="cf-impact-label">事件影响力</span>
-                  <span class="cf-impact-value">{{ cfResult.impact_score }}%</span>
-                </div>
-                <p class="cf-desc">{{ cfResult.impact_description }}</p>
-                <p class="cf-diff">{{ cfResult.key_difference }}</p>
-                <p class="cf-analysis">{{ cfResult.analysis }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI助手 -->
-        <div class="ai-assistant-section">
-          <h4 class="section-title">AI助手</h4>
-          <div class="chat-container">
-            <div class="chat-messages" ref="chatContainer">
-              <!-- 推荐问题区域 -->
-              <div v-if="chatHistory.length === 0 && recommendedQuestions.length > 0" class="recommended-questions">
-                <div class="recommended-header">
-                  <span class="recommended-icon">💡</span>
-                  <span class="recommended-title">为您推荐的问题</span>
-                </div>
-                <div class="questions-list">
-                  <button
-                    v-for="(question, idx) in recommendedQuestions"
-                    :key="idx"
-                    class="question-btn"
-                    @click="selectRecommendedQuestion(question)"
-                    :disabled="isChatting"
-                  >
-                    <span class="question-number">{{ idx + 1 }}</span>
-                    <span class="question-text">{{ question }}</span>
-                  </button>
-                </div>
-              </div>
-              <!-- 生成中状态 -->
-              <div v-if="chatHistory.length === 0 && isGeneratingQuestions" class="generating-questions">
-                <span class="generating-spinner"></span>
-                <span class="generating-text">正在生成推荐问题...</span>
-              </div>
-              <!-- 聊天消息 -->
-              <div
-                v-for="(msg, idx) in chatHistory"
-                :key="idx"
-                class="chat-message"
-                :class="msg.role"
-              >
-                <div class="message-content" v-html="msg.content"></div>
-              </div>
-            </div>
-            <div class="chat-input-area">
-              <input
-                v-model="chatInput"
-                type="text"
-                class="chat-input"
-                placeholder="向AI提问..."
-                @keyup.enter="sendChatMessage"
-              />
-              <button
-                class="btn-send"
-                :disabled="isChatting || !chatInput.trim()"
-                @click="sendChatMessage"
-              >
-                <span v-if="isChatting" class="spinner"></span>
-                <span v-else>发送</span>
-              </button>
-            </div>
+          <!-- 反事实推演模块 -->
+          <div class="counterfactual-section">
+            <CounterfactualPanel
+              :event-summary="eventSummary"
+              :current-sentiment="currentSentiment"
+              :time-range="timeRange"
+              :simulation-run-data="simulationRunData"
+              :prediction-data="predictionData"
+              :intervention-cards="interventionCards"
+              :original-timeline="originalTimeline"
+              @add-log="(msg) => emit('add-log', msg)"
+            />
           </div>
         </div>
       </div>
@@ -460,7 +292,9 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { marked } from 'marked'
-import { predictPublicOpinion, simulateIntervention as apiSimulateIntervention, chatAboutPrediction, generateRecommendedQuestions, agentPredict, generateInterventionCards, generateInterventionTimeline, strategyCompare, generateInterventionHeatmap, generateCascadeEffect, generateCounterfactual, generateTimelineEvents } from '../api/prediction.js'
+import * as d3 from 'd3'
+import { predictPublicOpinion, simulateIntervention as apiSimulateIntervention, chatAboutPrediction, generateRecommendedQuestions, agentPredict, generateInterventionCards, generateInterventionTimeline, strategyCompare, generateInterventionHeatmap, generateCascadeEffect, generateCounterfactual, generateTimelineEvents, generateCounterfactualDAG } from '../api/prediction.js'
+import CounterfactualPanel from './CounterfactualPanel.vue'
 import { searchWithTavily } from '../api/tavily.js'
 import { getRunStatusDetail } from '../api/simulation.js'
 import { getReport } from '../api/report.js'
@@ -473,7 +307,7 @@ const props = defineProps({
   projectData: Object
 })
 
-const emit = defineEmits(['add-log'])
+const emit = defineEmits(['add-log', 'heatmapCellClick'])
 
 // Agent模式状态
 const useAgentMode = ref(true)
@@ -518,6 +352,9 @@ const strategyComparisons = ref([])
 const strategyRecommendation = ref('')
 const isGeneratingHeatmap = ref(false)
 const heatmapData = ref([])
+const heatmapCanvas = ref(null)
+const heatmapExplanation = ref('')
+const heatmapSelectedCell = ref(null)
 const isGeneratingCascade = ref(false)
 const cascadeLayers = ref([])
 const cascadeTotalReach = ref(0)
@@ -1282,16 +1119,16 @@ const autoInitialize = async () => {
 
     // 直接生成预测数据，不显示加载状态
     console.log('Generating prediction data...')
-    
+
     // 🦋 先加载LLM生成的时间线事件
     await loadTimelineEvents()
-    
+
     predictionData.value = generateMockPredictionData()
     recommendedQuestions.value = generateDefaultQuestions()
     console.log('Prediction data generated:', predictionData.value)
 
-    // 🦋 加载干预策略卡片
-    loadInterventionCards()
+    // 🦋 加载干预策略卡片（需要等待完成）
+    await loadInterventionCards()
 
   } catch (error) {
     console.error('初始化失败:', error)
@@ -1662,6 +1499,7 @@ const loadTimelineEvents = async () => {
 const loadInterventionCards = async () => {
   if (!predictionData.value) return
   isLoadingCards.value = true
+  interventionCards.value = []
   try {
     const res = await generateInterventionCards({
       event_summary: predictionData.value.event_summary || eventSummary.value,
@@ -1673,15 +1511,24 @@ const loadInterventionCards = async () => {
       interventionCards.value = res.data.cards
       emit('add-log', `已生成${res.data.cards.length}张干预策略卡片`)
     } else {
-      emit('add-log', '干预卡片生成失败，请点击重试')
-      interventionCards.value = []
+      interventionCards.value = generateFallbackCards()
+      emit('add-log', '干预卡片API返回空，使用降级数据')
     }
   } catch (error) {
-    emit('add-log', `生成干预卡片失败: ${error.message}`)
-    interventionCards.value = []
+    interventionCards.value = generateFallbackCards()
+    emit('add-log', `干预卡片加载失败，使用降级数据`)
   } finally {
     isLoadingCards.value = false
   }
+}
+
+const generateFallbackCards = () => {
+  return [
+    { id: 'fc1', icon: '📢', name: '官方声明', description: '通过官方渠道发布正式声明，澄清事实', estimated_effect: '快速止血，降低传播速度' },
+    { id: 'fc2', icon: '🤝', name: 'KOL引导', description: '邀请意见领袖参与讨论，正向引导舆论', estimated_effect: '稀释负面声音' },
+    { id: 'fc3', icon: '📊', name: '数据披露', description: '公开关键数据和事实依据，增强透明度', estimated_effect: '提升公众信任' },
+    { id: 'fc4', icon: '🎯', name: '精准回应', description: '针对核心质疑点进行一对一回应', estimated_effect: '解决关键矛盾' },
+  ]
 }
 
 const retryLoadCards = () => {
@@ -1775,14 +1622,285 @@ const runHeatmapGeneration = async () => {
     })
     if (res.success && res.data?.heatmap) {
       heatmapData.value = res.data.heatmap
+      heatmapExplanation.value = res.data.explanation || '颜色越深代表干预效果越好，深蓝色区域是黄金干预期！'
       emit('add-log', '干预时机热力图生成完成')
+      await nextTick()
+      renderHeatmapD3()
+    } else {
+      heatmapData.value = generateFallbackHeatmap()
+      heatmapExplanation.value = '这是基于当前舆情态势推算的参考数据，实际干预效果还需结合具体情况。'
+      await nextTick()
+      renderHeatmapD3()
     }
   } catch (error) {
-    emit('add-log', `热力图生成失败: ${error.message}`)
-    heatmapData.value = []
+    heatmapData.value = generateFallbackHeatmap()
+    heatmapExplanation.value = '热力图生成遇到问题，显示的是模拟数据仅供参考。'
+    emit('add-log', `热力图生成失败，使用降级数据: ${error.message}`)
+    await nextTick()
+    renderHeatmapD3()
   } finally {
     isGeneratingHeatmap.value = false
   }
+}
+
+const generateFallbackHeatmap = () => {
+  const types = ['官方声明', 'KOL引导', '数据披露', '精准回应']
+  const days = Math.min(timeRange.value, 7)
+  return types.map((name, i) => ({
+    type: `type_${i}`,
+    type_name: name,
+    scores: Array.from({ length: days }, (_, d) => ({
+      day: d + 1,
+      score: Math.round(40 + Math.random() * 40 + (i === 0 ? 15 : 0) - d * 3),
+      effectiveness: d < 2 ? '极佳' : d < 4 ? '良好' : '一般',
+      risk_note: '仅供参考'
+    }))
+  }))
+}
+
+const renderHeatmapD3 = () => {
+  if (!heatmapCanvas.value || heatmapData.value.length === 0) return
+
+  const container = heatmapCanvas.value
+  container.innerHTML = ''
+
+  const margin = { top: 30, right: 20, bottom: 50, left: 80 }
+  const cellGap = 3
+  const cellRadius = 4
+
+  const types = heatmapData.value.map(r => r.type_name)
+  const days = heatmapData.value[0]?.scores.map(s => s.day) || []
+  const daysCount = days.length
+  const rowsCount = types.length
+
+  const cellW = Math.max(40, Math.min(60, (container.clientWidth - margin.left - margin.right - (daysCount - 1) * cellGap) / daysCount))
+  const cellH = 44
+  const width = margin.left + (daysCount * cellW) + ((daysCount - 1) * cellGap) + margin.right
+  const height = margin.top + (rowsCount * cellH) + ((rowsCount - 1) * cellGap) + margin.bottom
+
+  const svg = d3.select(container).append('svg')
+    .attr('width', width)
+    .attr('height', height)
+
+  const defs = svg.append('defs')
+
+  const colorScale = d3.scaleLinear()
+    .domain([20, 50, 80])
+    .range(['#1e40af', '#7dd3fc', '#fef9c3'])
+    .interpolate(d3.interpolateHcl)
+
+  const warningScale = d3.scaleLinear()
+    .domain([20, 50, 80])
+    .range(['#dc2626', '#f97316', '#22c55e'])
+    .interpolate(d3.interpolateHcl)
+
+  // 定义呼吸动画（使用 CSS filter: drop-shadow）
+  defs.append('style')
+    .text(`
+      @keyframes breathGlow {
+        0%, 100% { 
+          filter: drop-shadow(0 0 8px #FFD700);
+        }
+        50% { 
+          filter: drop-shadow(0 0 12px #FFD700) brightness(1.2);
+        }
+      }
+      .gold-point {
+        animation: breathGlow 2s ease-in-out infinite;
+      }
+    `)
+
+  // 收集所有单元格，找出评分最低的Top3作为黄金干预期
+  const allCells = []
+  heatmapData.value.forEach((row, rowIdx) => {
+    row.scores.forEach((score, colIdx) => {
+      allCells.push({
+        score: score.score,
+        rowIdx,
+        colIdx,
+        row: row,
+        day: score.day
+      })
+    })
+  })
+  // 按评分升序，取最低3个
+  const topGoldCells = allCells.sort((a, b) => a.score - b.score).slice(0, 3)
+  const goldCellKeys = new Set(topGoldCells.map(c => `${c.rowIdx}-${c.colIdx}`))
+
+  const g = svg.append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`)
+
+  g.append('rect')
+    .attr('width', width - margin.left - margin.right)
+    .attr('height', height - margin.top - margin.bottom)
+    .attr('fill', '#1e293b')
+    .attr('rx', 8)
+
+  g.selectAll('.col-header')
+    .data(days)
+    .join('text')
+    .attr('class', 'col-header')
+    .attr('x', (d, i) => i * (cellW + cellGap) + cellW / 2)
+    .attr('y', -10)
+    .attr('text-anchor', 'middle')
+    .attr('fill', '#94a3b8')
+    .attr('font-size', 11)
+    .attr('font-weight', 600)
+    .text(d => `Day ${d}`)
+
+  g.selectAll('.row-label')
+    .data(types)
+    .join('text')
+    .attr('class', 'row-label')
+    .attr('x', -10)
+    .attr('y', (d, i) => i * (cellH + cellGap) + cellH / 2)
+    .attr('text-anchor', 'end')
+    .attr('dominant-baseline', 'middle')
+    .attr('fill', '#e2e8f0')
+    .attr('font-size', 12)
+    .attr('font-weight', 500)
+    .text(d => d)
+
+  const tooltip = d3.select(container).append('div')
+    .attr('class', 'heatmap-tooltip')
+    .style('opacity', 0)
+    .style('position', 'absolute')
+    .style('background', 'rgba(15,23,42,0.95)')
+    .style('border', '1px solid #475569')
+    .style('border-radius', '8px')
+    .style('padding', '10px 14px')
+    .style('color', '#f1f5f9')
+    .style('font-size', '12px')
+    .style('pointer-events', 'none')
+    .style('z-index', 100)
+    .style('box-shadow', '0 4px 12px rgba(0,0,0,0.3)')
+    .style('max-width', '200px')
+
+  let animDelay = 0
+
+  heatmapData.value.forEach((row, rowIdx) => {
+    row.scores.forEach((score, colIdx) => {
+      const x = colIdx * (cellW + cellGap)
+      const y = rowIdx * (cellH + cellGap)
+      const isGoldCell = goldCellKeys.has(`${rowIdx}-${colIdx}`)
+
+      const cell = g.append('g')
+        .attr('class', 'heatmap-cell-group')
+        .style('cursor', 'pointer')
+        .on('click', () => {
+          heatmapSelectedCell.value = { row: row.type_name, col: `Day ${score.day}`, score }
+          // 派发给父组件
+          emit('heatmapCellClick', {
+            intervention: row.type_name.replace(/\s+/g, '_'),
+            day: score.day,
+            score: score.score
+          })
+          tooltip.transition().duration(200).style('opacity', 0)
+        })
+
+      cell.append('rect')
+        .attr('x', x)
+        .attr('y', y)
+        .attr('width', cellW)
+        .attr('height', cellH)
+        .attr('rx', cellRadius)
+        .attr('fill', colorScale(score.score))
+        .attr('stroke', score.score > 70 ? warningScale(score.score) : (isGoldCell ? '#fbbf24' : 'none'))
+        .attr('stroke-width', score.score > 70 || isGoldCell ? 2 : 0)
+        .attr('class', isGoldCell ? 'gold-point' : '')
+        .attr('opacity', 0)
+        .transition()
+        .duration(400)
+        .delay(animDelay)
+        .attr('opacity', 1)
+
+      // 隐藏评分数字，仅保留风险文字，调小字号
+      cell.append('text')
+        .attr('x', x + cellW / 2)
+        .attr('y', y + cellH / 2 + 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .attr('fill', score.score > 60 ? '#1e293b' : '#cbd5e1')
+        .attr('font-size', 8)
+        .attr('opacity', 0.7)
+        .text(score.score > 70 ? '高危' : score.score > 50 ? '中危' : '低危')
+        .transition().duration(400).delay(animDelay).attr('opacity', 0.7)
+
+      cell.on('mouseenter', function (event) {
+        const rectElement = d3.select(this).select('rect')
+        
+        rectElement
+          .transition().duration(200)
+          .style('transform', `translateY(-4px) scale(1.05)`)
+          .style('box-shadow', '0 10px 20px rgba(0,0,0,0.3)')
+          .style('transform-origin', 'center center')
+
+        d3.select(this.parentNode).selectAll('.heatmap-cell-group rect')
+          .filter((d, i, els) => {
+            const parent = d3.select(els[i].parentNode)
+            return parent.node() !== d3.select(this).node()
+          })
+          .transition().duration(150).attr('opacity', 0.3)
+
+        const rect = container.getBoundingClientRect()
+        const tooltipX = event.clientX - rect.left + 10
+        const tooltipY = event.clientY - rect.top - 10
+
+        let icon = score.score < 40 ? '🌟' : (score.score > 70 ? '⚠️' : '')
+        tooltip.html(`
+          <div style="font-weight:600;margin-bottom:6px;color:#a5b4fc">${row.type_name} × Day ${score.day}</div>
+          <div style="margin-bottom:4px">效果评分: ${icon} <span style="font-weight:700;color:${score.score > 70 ? '#ef4444' : score.score > 50 ? '#f59e0b' : '#22c55e'}">${score.score}分</span></div>
+          <div style="color:#94a3b8;font-size:11px">${score.effectiveness || '效果一般'}</div>
+          ${score.risk_note ? `<div style="color:#64748b;font-size:10px;margin-top:4px">${score.risk_note}</div>` : ''}
+        `)
+          .transition().duration(150)
+          .style('opacity', 1)
+          .style('left', `${Math.min(tooltipX, container.clientWidth - 220)}px`)
+          .style('top', `${Math.max(0, tooltipY)}px`)
+      })
+      .on('mouseleave', function () {
+        const rectElement = d3.select(this).select('rect')
+        
+        rectElement
+          .transition().duration(200)
+          .style('transform', 'translateY(0) scale(1)')
+          .style('box-shadow', 'none')
+
+        d3.select(this.parentNode).selectAll('.heatmap-cell-group rect')
+          .transition().duration(150).attr('opacity', 1)
+
+        tooltip.transition().duration(200).style('opacity', 0)
+      })
+
+      animDelay += 15
+    })
+  })
+
+  const legendW = 120
+  const legendH = 10
+  const legendX = width - margin.right - legendW
+  const legendY = height - 30
+
+  const legendScale = d3.scaleLinear().domain([20, 100]).range([0, legendW])
+
+  const legendGrad = defs.append('linearGradient')
+    .attr('id', 'heatmapLegendGrad')
+    .attr('x1', '0%').attr('y1', '0%').attr('x2', '100%').attr('y2', '0%')
+
+  legendGrad.append('stop').attr('offset', '0%').attr('stop-color', '#1e40af')
+  legendGrad.append('stop').attr('offset', '50%').attr('stop-color', '#7dd3fc')
+  legendGrad.append('stop').attr('offset', '100%').attr('stop-color', '#fef9c3')
+
+  g.append('rect')
+    .attr('x', legendX)
+    .attr('y', legendY)
+    .attr('width', legendW)
+    .attr('height', legendH)
+    .attr('fill', 'url(#heatmapLegendGrad)')
+    .attr('rx', 3)
+
+  g.append('text').attr('x', legendX).attr('y', legendY - 4).attr('fill', '#94a3b8').attr('font-size', 9).text('效果差')
+  g.append('text').attr('x', legendX + legendW).attr('y', legendY - 4).attr('fill', '#94a3b8').attr('font-size', 9).attr('text-anchor', 'end').text('效果佳')
 }
 
 const runCascadeEffect = async () => {
@@ -1909,7 +2027,8 @@ const generateDefaultQuestions = () => {
   
   if (warnings.length > 0) {
     const topWarning = warnings[0]
-    questions.push(`专家预警"${topWarning.slice(0, 25)}..."，在${timeRangeDays}天内应如何重点防控？`)
+    const warningText = typeof topWarning === 'string' ? topWarning : (topWarning.description || topWarning.text || '')
+    questions.push(`专家预警"${warningText.slice(0, 25)}..."，在${timeRangeDays}天内应如何重点防控？`)
   } else if (scenarios.length > 1) {
     const secondScenario = scenarios[1]
     questions.push(`如果"${secondScenario.name}"成为次要情景，对整体舆情走向会产生什么影响？`)
@@ -1917,7 +2036,11 @@ const generateDefaultQuestions = () => {
     questions.push(`综合当前分析，未来${timeRangeDays}天内的舆情发展会经历哪些关键阶段？`)
   }
   
-  return questions.slice(0, 3)
+  return questions.slice(0, 3).length >= 3 ? questions.slice(0, 3) : [
+    `${eventName}的后续发展趋势如何？有什么关键应对建议？`,
+    `当前的舆情风险点主要集中在哪些方面？如何有效干预？`,
+    `针对${timeRangeDays}天内的舆情发展，应重点做好哪些准备工作？`
+  ]
 }
 
 // 选择推荐问题
@@ -3622,133 +3745,104 @@ const sendChatMessage = async () => {
   flex-shrink: 0;
 }
 
-.heatmap-grid {
-  margin-top: 12px;
-  overflow-x: auto;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.heatmap-container {
+.heatmap-wrapper {
+  position: relative;
   margin-top: 16px;
 }
 
-.heatmap-hint {
-  font-size: 12px;
-  color: #64748b;
-  margin-bottom: 8px;
+.heatmap-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 12px;
+  overflow: hidden;
 }
 
-.heatmap-legend {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
-  padding: 10px 14px;
-  background: #f8fafc;
-  border-radius: 6px;
-}
-
-.legend-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-}
-
-.legend-scale {
-  display: flex;
-  gap: 12px;
-}
-
-.legend-scale .legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #64748b;
-}
-
-.color-box {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-}
-
-.heatmap-row {
-  display: flex;
-}
-
-.heatmap-cell {
-  min-width: 60px;
-  height: 48px;
+.heatmap-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  min-height: 220px;
+  background: #0f172a;
+  border-radius: 12px;
+  color: #94a3b8;
+  gap: 16px;
 }
 
-.header-cell {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  font-weight: 600;
-  color: white;
-  border-color: #5a67d8;
+.heatmap-loading-ring {
+  width: 48px;
+  height: 48px;
+  border: 3px solid #1e293b;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: heatmap-spin 1s linear infinite;
 }
 
-.type-cell {
-  background: #f8fafc;
-  font-weight: 500;
-  color: #334155;
-  min-width: 90px;
-  justify-content: flex-start;
-  padding-left: 10px;
+@keyframes heatmap-spin {
+  to { transform: rotate(360deg); }
 }
 
-.score-cell {
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+.heatmap-explanation {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border-radius: 8px;
+  border-left: 3px solid #6366f1;
 }
 
-.score-cell:hover {
-  transform: scale(1.08);
-  z-index: 2;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.score-cell.excellent {
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
-}
-
-.score-cell.good {
-  background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%) !important;
-}
-
-.score-cell.average {
-  background: linear-gradient(135deg, #eab308 0%, #ca8a04 100%) !important;
-}
-
-.score-cell.poor {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
-}
-
-.score-cell.danger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
-}
-
-.score-value {
-  font-weight: 700;
+.explanation-icon {
+  flex-shrink: 0;
   font-size: 14px;
-  color: white;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
-.score-label {
-  font-size: 9px;
-  color: rgba(255,255,255,0.85);
-  margin-top: 2px;
+.explanation-text {
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.btn-heatmap {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.btn-heatmap:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+}
+
+.btn-heatmap:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* 链式反应 */
