@@ -440,10 +440,7 @@ class SimulationRunner:
         try:
             # 构建运行命令，使用完整路径
             # 注意：必须使用包含 oasis 模块的 Python 解释器
-            python_executable = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
-                'venv_py3.11', 'python.exe'
-            )
+            python_executable = sys.executable
             
             cmd = [
                 python_executable,  # Python解释器
