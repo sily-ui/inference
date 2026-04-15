@@ -55,6 +55,24 @@ INTERVENTION_TYPES = [
         "name": "话题转移",
         "icon": "🔄",
     },
+    {
+        "id": "targeted_response",
+        "type": "targeted_response",
+        "name": "精准回应",
+        "icon": "🎯",
+    },
+    {
+        "id": "cold_handling",
+        "type": "cold_handling",
+        "name": "冷处理",
+        "icon": "⏰",
+    },
+    {
+        "id": "topic_shift",
+        "type": "topic_shift",
+        "name": "话题转移",
+        "icon": "🔄",
+    },
 ]
 
 
@@ -937,21 +955,43 @@ SIR模型计算的干预后数值趋势：
                 else:
                     effectiveness = "低效"
 
-                risk_note = ""
-                if itype == "official_statement" and day > 3:
-                    risk_note = "回应过晚，公信力受损"
-                elif itype == "cold_treatment" and day <= 2:
-                    risk_note = "过早冷处理可能激化情绪"
-                elif itype == "kol_guidance" and day <= 1:
-                    risk_note = "事件初期KOL介入可能引质疑"
-                elif itype == "data_disclosure" and day <= 1:
-                    risk_note = "数据尚未整理完毕"
-                elif score >= 80:
-                    risk_note = "黄金时机"
-                elif score >= 60:
-                    risk_note = "仍在有效窗口"
-                elif score < 30:
-                    risk_note = "时机不佳"
+                # 使用LLM生成风险提示
+                type_name_map = {t["id"]: t["name"] for t in INTERVENTION_TYPES}
+                intervention_name = type_name_map.get(itype, itype)
+                
+                prompt = f"""你是一位资深的舆情危机公关专家。请针对以下干预策略和时机，生成具体的风险提示：
+
+事件背景：{event_summary}
+当前情绪：{current_sentiment}
+干预策略：{intervention_name}
+干预时机：第{day}天
+干预效果得分：{score}（0-100分，越高越好）
+
+请基于事件背景和干预策略的特点，生成一个简短、具体的风险提示（15字以内）。
+
+输出格式：只返回风险提示内容，不要其他文字。"""
+                
+                try:
+                    response = self.llm_client.chat(
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.7,
+                        max_tokens=50,
+                    )
+                    risk_note = response if isinstance(response, str) else response.get("content", "").strip()
+                    # 确保风险提示不超过15字
+                    if len(risk_note) > 15:
+                        risk_note = risk_note[:15] + "..."
+                except Exception as e:
+                    # 降级处理：使用通用风险提示
+                    if score >= 80:
+                        risk_note = "黄金时机"
+                    elif score >= 60:
+                        risk_note = "仍在有效窗口"
+                    elif score < 30:
+                        risk_note = "时机不佳"
+                    else:
+                        risk_note = "需谨慎评估"
+
 
                 scores.append({
                     "day": day,
