@@ -1,8 +1,4 @@
-# MiroFish · 舆情态势感知与推演干预平台
-
-<p align="center">
-  <img src="frontend/src/assets/logo/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="200"/>
-</p>
+# 舆情态势感知与推演干预平台
 
 <p align="center">
   <strong>基于 LLM-Agent 的智能舆情模拟与决策支持系统</strong>
@@ -20,7 +16,7 @@
 
 ## 📋 项目简介
 
-**MiroFish** 是一款面向舆情分析领域的智能推演平台，深度融合大语言模型（LLM）与多智能体（Multi-Agent）技术，构建从**知识图谱构建**、**智能体建模**、**舆情推演**到**干预决策**的全链路解决方案。
+本平台是一款面向舆情分析领域的智能推演系统，深度融合大语言模型（LLM）与多智能体（Multi-Agent）技术，构建从**知识图谱构建**、**智能体建模**、**舆情推演**到**干预决策**的全链路解决方案。
 
 平台基于现实数据种子，通过 GraphRAG 技术构建领域知识图谱，利用 OASIS 框架模拟真实社交媒体环境中的多主体交互行为，并结合 LLM 的推理能力实现舆情态势的智能预测与干预策略生成。
 
@@ -124,7 +120,7 @@ LLM_MODEL=gpt-4o
 # Zep Cloud 配置
 ZEP_API_KEY=your_zep_api_key
 
-# Tavily 搜索配置（可选）
+# Tavily 搜索配置
 TAVILY_API_KEY=your_tavily_api_key
 
 # Redis 配置（可选）
@@ -269,7 +265,7 @@ inference/
 | `LLM_BASE_URL` | LLM 服务基础 URL | ✅ |
 | `LLM_MODEL` | 使用的大模型名称 | ✅ |
 | `ZEP_API_KEY` | Zep Cloud API 密钥 | ✅ |
-| `TAVILY_API_KEY` | Tavily 搜索 API 密钥 | ❌ |
+| `TAVILY_API_KEY` | Tavily 搜索 API 密钥 | ✅ |
 | `REDIS_URL` | Redis 连接地址 | ❌ |
 
 ### 模拟参数配置

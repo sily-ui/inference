@@ -1,5 +1,5 @@
 """
-MiroFish Backend - Flask应用工厂
+Backend - Flask应用工厂
 """
 
 import os
@@ -49,10 +49,10 @@ def create_app(config_class=Config):
 
     swagger_template = {
         "info": {
-            "title": "MiroFish API",
-            "description": "MiroFish - 简洁通用的群体智能引擎 API",
+            "title": "Inference API",
+            "description": "舆情态势感知与推演干预平台 API",
             "version": "1.0.0",
-            "contact": {"name": "MiroFish Team", "email": "mirofish@shanda.com"},
+            "contact": {"name": "Inference Team", "email": "inference@example.com"},
         },
         "securityDefinitions": {
             "Bearer": {
@@ -67,7 +67,7 @@ def create_app(config_class=Config):
     Swagger(app, config=swagger_config, template=swagger_template)
 
     # 设置日志
-    logger = setup_logger("mirofish")
+    logger = setup_logger("inference")
 
     # 只在 reloader 子进程中打印启动信息（避免 debug 模式下打印两次）
     is_reloader_process = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
@@ -76,7 +76,7 @@ def create_app(config_class=Config):
 
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
+        logger.info("Backend 启动中...")
         logger.info("=" * 50)
 
     # 创建数据库表
@@ -123,12 +123,12 @@ def create_app(config_class=Config):
     def health():
         return {
             "status": "ok",
-            "service": "MiroFish Backend",
+            "service": "Backend",
             "version": "1.0.0",
             "api_docs": "/api/docs/",
         }
 
     if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+        logger.info("Backend 启动完成")
 
     return app

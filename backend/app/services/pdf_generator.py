@@ -300,7 +300,7 @@ class PDFGenerator:
         canvas.setFont(self.chinese_font, 8)
         canvas.setFillColor(HexColor("#888888"))
 
-        canvas.drawString(doc.leftMargin, doc.height + doc.topMargin + 10 * mm, "MiroFish Prediction Report")
+        canvas.drawString(doc.leftMargin, doc.height + doc.topMargin + 10 * mm, "Prediction Report")
 
         page_num = canvas.getPageNumber()
         canvas.drawRightString(doc.width + doc.leftMargin, 15 * mm, f"- {page_num} -")

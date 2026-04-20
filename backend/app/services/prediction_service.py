@@ -947,7 +947,7 @@ class PublicOpinionPredictionService:
             for t in high_heat_days:
                 timeline_highlights += f"\n- 第{t.get('day', 0)}天: 热度{t.get('heat', 0)}, {t.get('event', '')}"
 
-        context = f"""你是MiroFish舆情预测系统的AI助手，一位资深的舆情分析专家。请基于以下详细的预测数据，为用户提供专业、实用、可操作的建议。
+        context = f"""你是舆情预测系统的AI助手，一位资深的舆情分析专家。请基于以下详细的预测数据，为用户提供专业、实用、可操作的建议。
 
 【事件背景】
 {prediction_data.get("event_summary", "")}

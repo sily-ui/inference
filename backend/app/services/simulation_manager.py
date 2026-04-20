@@ -490,7 +490,7 @@ class SimulationManager:
                 "domestic": f"python {scripts_dir}/run_simulation.py --config {config_path}",
             },
             "instructions": (
-                f"1. 激活conda环境: conda activate MiroFish\n"
+                f"1. 激活conda环境: conda activate inference\n"
                 f"2. 运行模拟 (脚本位于 {scripts_dir}):\n"
                 f"   - 运行国内舆情平台模拟: python {scripts_dir}/run_simulation.py --config {config_path}"
             )

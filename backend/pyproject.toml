@@ -1,11 +1,11 @@
 [project]
-name = "mirofish-backend"
+name = "inference-backend"
 version = "0.1.0"
-description = "MiroFish - 简洁通用的群体智能引擎，预测万物"
+description = "舆情态势感知与推演干预平台"
 requires-python = ">=3.11"
 license = { text = "AGPL-3.0" }
 authors = [
-    { name = "MiroFish Team" }
+    { name = "Inference Team" }
 ]
 
 dependencies = [
